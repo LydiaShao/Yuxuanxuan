@@ -1,33 +1,26 @@
 # Yuxuanxuan
 
-图文展示小站。首页是札记列表，点开一则可以看到图片和对应的文字。可以按分类筛选，也可以搜索标题和正文。
+西幻职业图文站。顶栏用英文切换职业，每一页是一个职业：一张横版插图、一枚方邮票头像，加上文字。
 
-## 放入图片和文字
+主题色和图片都在管理员后台里改，不用改代码。
 
-1. 把图片放到 `images/` 目录，例如 `images/morning.jpg`。
-2. 打开 `content/stories.js`，在 `window.STORIES` 数组里追加一则：
-
-```js
-{
-  id: "morning",
-  title: "窗边的第一束光",
-  category: "居室",
-  date: "2026.03.12",
-  location: "杭州",
-  image: "images/morning.jpg",
-  alt: "窗台上的白杯子和一片叶子",
-  ratio: "wide",
-  excerpt: "一句会出现在首页的摘要。",
-  paragraphs: ["第一段。", "第二段。"]
-}
-```
-
-`id` 用英文或拼音，不要重复。`category` 会自动出现在首页分类里。`ratio` 可以不写；需要控制首页画幅时用 `wide`、`landscape`、`portrait` 或 `square`。
-
-## 本地预览
+## 启动
 
 ```bash
-python3 -m http.server 4173
+python3 server.py
 ```
 
-浏览器打开 http://127.0.0.1:4173
+前台：http://127.0.0.1:4173
+
+后台：http://127.0.0.1:4173/admin
+
+第一次打开后台时设置管理员密码（至少 8 位）。密码存在本机的 `data/admin.json`，不会提交到仓库。
+
+## 后台里可以做的事
+
+- 改背景、面板、文字、次要文字、点缀和画框的颜色
+- 添加、排序、删除职业。顶栏名称用英文
+- 为每个职业上传横版插图和方邮票头像（JPG、PNG、WEBP、GIF，小于 12MB）
+- 写一句短文和正文。正文里用空行分段
+
+上传的图片在 `images/uploads/`，站点内容在 `data/site.json`。
