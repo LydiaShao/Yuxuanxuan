@@ -1,5 +1,6 @@
 "use strict";
 
+const SITE_NAME = "Yuxuanxuan";
 const SPANS = [7, 5, 5, 7, 12];
 const RATIOS = ["portrait", "landscape", "portrait", "square", "wide"];
 
@@ -238,8 +239,7 @@ function homeView(route) {
     return h(
       "section",
       { class: "empty-home" },
-      h("p", { class: "eyebrow" }, "Yuxuanxuan"),
-      h("h1", {}, "予萱"),
+      h("h1", { class: "site-title" }, SITE_NAME),
       h("p", { class: "lede" }, "图文札记。一张图片，一段文字。"),
       h("p", { class: "quiet" }, "册子还是空的。"),
       h("p", { class: "hint" }, "把图片放到 images 目录，再在 content/stories.js 里写上对应的标题和文字。")
@@ -303,7 +303,7 @@ function aboutView() {
     "article",
     { class: "about" },
     h("p", { class: "kicker" }, "关于"),
-    h("h1", {}, "予萱"),
+    h("h1", { class: "site-title" }, SITE_NAME),
     h("p", {}, "这是一个图文小站。每一则札记放一张图片，旁边写一段文字，用来慢慢翻。"),
     h("p", {}, "可以从分类里挑，也可以按标题和正文搜索。点开一则，画面和文字会留在同一页。"),
     stories.length
@@ -331,7 +331,7 @@ function viewFor(route) {
 
 function syncChrome(route) {
   const story = route.name === "story" ? getStories().find((item) => item.id === route.id) : null;
-  document.title = route.name === "about" ? "关于 · 予萱" : story ? `${story.title} · 予萱` : route.name === "story" ? "未找到 · 予萱" : "予萱";
+  document.title = route.name === "about" ? `关于 · ${SITE_NAME}` : story ? `${story.title} · ${SITE_NAME}` : route.name === "story" ? `未找到 · ${SITE_NAME}` : SITE_NAME;
   const active = route.name === "about" ? "about" : "home";
   document.querySelectorAll("[data-nav]").forEach((link) => {
     if (link.dataset.nav === active) link.setAttribute("aria-current", "page");
@@ -375,7 +375,7 @@ function refreshResults() {
   }
   count.textContent = `共 ${list.length} 篇`;
   results.replaceChildren(list.length ? grid(list, route) : emptyResults());
-  document.title = "予萱";
+  document.title = SITE_NAME;
 }
 
 function applySearch(value) {
