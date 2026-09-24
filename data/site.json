@@ -1,11 +1,6 @@
 {
   "theme": {
-    "background": "#12151c",
-    "surface": "#1c2230",
-    "text": "#f6f1e7",
-    "muted": "#b3a89a",
-    "accent": "#d4b46a",
-    "frame": "#8a7044"
+    "color": "#ff8f8f"
   },
   "jobs": []
 }

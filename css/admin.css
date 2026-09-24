@@ -1,70 +1,85 @@
 .admin-mark {
   margin: 0 0 0 auto;
   font-family: var(--display);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--accent);
-  font-size: 0.78rem;
+  color: var(--ink);
+  font-size: 0.95rem;
+  background: color-mix(in srgb, var(--theme) 70%, white);
+  border-radius: 999px;
+  padding: 0.2rem 0.75rem;
 }
 
 .gate,
 .editor {
-  padding-top: 2rem;
+  padding-top: 1.6rem;
+}
+
+.gate,
+.panel,
+.job-card {
+  background: var(--surface);
+  border: 4px solid color-mix(in srgb, var(--theme) 55%, white);
+  border-radius: 1.8rem;
+  box-shadow: 7px 9px 0 color-mix(in srgb, var(--theme) 28%, white);
 }
 
 .gate {
   max-width: 28rem;
+  padding: 1.3rem 1.3rem 1.1rem;
 }
 
 .panel {
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  border: 1px solid var(--frame);
-  padding: 1.1rem 1.15rem 1.2rem;
+  padding: 1.15rem 1.2rem 1.25rem;
   margin-bottom: 1rem;
 }
 
+.job-card {
+  border-color: var(--job, var(--theme));
+  box-shadow: 7px 9px 0 color-mix(in srgb, var(--job, var(--theme)) 34%, white);
+  padding: 1rem 1.05rem 1.05rem;
+  margin-bottom: 0.95rem;
+}
+
 .panel h2,
-.job-card h3 {
-  margin: 0 0 0.8rem;
+.job-card h3,
+.gate h1 {
+  margin: 0 0 0.45rem;
   font-family: var(--display);
-  font-weight: 500;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink);
 }
 
 label {
   display: block;
-  margin: 0.75rem 0 0.3rem;
+  margin: 0.8rem 0 0.3rem;
   color: var(--muted);
-  font-size: 0.92rem;
+  font-family: var(--display);
+  font-size: 0.95rem;
 }
 
 input[type="text"],
 input[type="password"],
 textarea {
   width: 100%;
-  background: var(--background);
-  border: 1px solid var(--frame);
-  border-radius: 0;
-  padding: 0.55rem 0.65rem;
+  background: white;
+  border: 3px solid color-mix(in srgb, var(--theme) 42%, white);
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem;
 }
 
 textarea {
   min-height: 8rem;
   resize: vertical;
-}
-
-.colors {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 0.8rem 1rem;
+  border-radius: 1.3rem;
 }
 
 .color-field input[type="color"] {
   width: 100%;
-  height: 2.4rem;
-  padding: 0.15rem;
-  background: var(--background);
-  border: 1px solid var(--frame);
+  height: 2.8rem;
+  padding: 0.2rem;
+  background: white;
+  border: 3px solid color-mix(in srgb, var(--theme) 42%, white);
+  border-radius: 999px;
 }
 
 .row-actions,
@@ -79,27 +94,34 @@ textarea {
   position: sticky;
   bottom: 0.6rem;
   padding: 0.7rem 0;
-  background: color-mix(in srgb, var(--background) 92%, transparent);
 }
 
-button,
-.file-button {
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--frame);
-  padding: 0.45rem 0.75rem;
+button {
+  background: white;
+  color: var(--ink);
+  border: 3px solid color-mix(in srgb, var(--theme) 45%, white);
+  border-radius: 999px;
+  padding: 0.42rem 0.9rem;
+  font-family: var(--display);
   cursor: pointer;
 }
 
 button.primary {
-  background: var(--accent);
-  color: #1a140c;
-  border-color: var(--accent);
+  background: var(--theme);
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--theme) 45%, var(--ink));
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--theme) 40%, #e7b7c4);
 }
 
 button.danger {
-  color: #e7b2a4;
-  border-color: #8a4a3c;
+  color: #9c3d55;
+  border-color: #f0b3c0;
+  background: #fff5f7;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .status {
@@ -108,14 +130,7 @@ button.danger {
 }
 
 .status.is-error {
-  color: #e7b2a4;
-}
-
-.job-card {
-  border: 1px solid var(--frame);
-  padding: 1rem;
-  margin-bottom: 0.9rem;
-  background: color-mix(in srgb, var(--background) 55%, transparent);
+  color: #9c3d55;
 }
 
 .uploads {
@@ -133,7 +148,7 @@ button.danger {
 
 .hint {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.92rem;
 }
 
 @media (max-width: 720px) {

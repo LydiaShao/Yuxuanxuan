@@ -1,7 +1,7 @@
 "use strict";
 
 const SITE_NAME = "Yuxuanxuan";
-const THEME_KEYS = ["background", "surface", "text", "muted", "accent", "frame"];
+const FALLBACK_JOB = "#7eb6ff";
 
 function h(tag, props, ...children) {
   const node = document.createElement(tag);
@@ -17,15 +17,16 @@ function h(tag, props, ...children) {
   return node;
 }
 
+function cssColor(value, fallback) {
+  return /^#[0-9a-fA-F]{6}$/.test(value || "") ? value : fallback;
+}
+
 function applyTheme(theme) {
-  const root = document.documentElement;
-  for (const key of THEME_KEYS) {
-    if (theme && typeof theme[key] === "string") root.style.setProperty(`--${key}`, theme[key]);
-  }
-  if (theme && theme.background) {
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", theme.background);
-  }
+  const color = cssColor(theme && (theme.color || theme.accent), "");
+  if (!color) return;
+  document.documentElement.style.setProperty("--theme", color);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", color);
 }
 
 function plate(className, src, alt, emptyLabel) {
@@ -48,24 +49,28 @@ function plate(className, src, alt, emptyLabel) {
 function renderNav(jobs, activeId) {
   const nav = document.getElementById("job-nav");
   nav.replaceChildren(
-    ...jobs.map((job) =>
-      h(
+    ...jobs.map((job) => {
+      const color = cssColor(job.color, FALLBACK_JOB);
+      return h(
         "a",
         {
           href: `#/job/${encodeURIComponent(job.id)}`,
           "aria-current": job.id === activeId ? "page" : null,
+          style: `--job:${color}`,
         },
+        h("i", { class: "dot", "aria-hidden": "true" }),
         job.name
-      )
-    )
+      );
+    })
   );
 }
 
 function renderJob(job) {
   const paragraphs = Array.isArray(job.paragraphs) ? job.paragraphs.filter(Boolean) : [];
+  const color = cssColor(job.color, FALLBACK_JOB);
   return h(
     "article",
-    { class: "job" },
+    { class: "job", style: `--job:${color}` },
     plate("banner", job.banner, `${job.name} illustration`, "Landscape plate"),
     h(
       "div",

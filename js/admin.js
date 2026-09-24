@@ -1,17 +1,11 @@
 "use strict";
 
-const THEME_FIELDS = [
-  ["background", "背景"],
-  ["surface", "面板"],
-  ["text", "文字"],
-  ["muted", "次要文字"],
-  ["accent", "点缀"],
-  ["frame", "画框"],
-];
+const FALLBACK_THEME = "#ff8f8f";
+const FALLBACK_JOB = "#7eb6ff";
 
 const state = {
   mode: "loading",
-  theme: {},
+  theme: { color: FALLBACK_THEME },
   jobs: [],
   message: "",
   error: "",
@@ -33,10 +27,13 @@ function h(tag, props, ...children) {
   return node;
 }
 
+function cssColor(value, fallback) {
+  return /^#[0-9a-fA-F]{6}$/.test(value || "") ? value : fallback;
+}
+
 function applyTheme(theme) {
-  for (const [key] of THEME_FIELDS) {
-    if (theme[key]) document.documentElement.style.setProperty(`--${key}`, theme[key]);
-  }
+  const color = cssColor(theme && (theme.color || theme.accent), "");
+  if (color) document.documentElement.style.setProperty("--theme", color);
 }
 
 async function api(path, options = {}) {
@@ -101,12 +98,23 @@ function editor() {
   return h(
     "div",
     { class: "editor" },
-    h("section", { class: "panel" }, h("h2", {}, "主题色"), h("div", { class: "colors" }, THEME_FIELDS.map(colorField)), h("p", { class: "hint" }, "改色会立刻反映在这个页面上。点保存后，前台才会一起换。")),
+    h(
+      "section",
+      { class: "panel" },
+      h("h2", {}, "网站主题色"),
+      h("p", { class: "hint" }, "所有职业共用。顶栏、按钮和页面点缀会跟着它走。"),
+      colorRow("网站主题色", state.theme.color, (next) => {
+        state.theme.color = next;
+        state.dirty = true;
+        applyTheme(state.theme);
+      })
+    ),
     h(
       "section",
       { class: "panel" },
       h("h2", {}, "职业"),
-      h("p", { class: "hint" }, "顶栏按这里的顺序显示英文职业名。每一页一张横版插图，一枚方邮票头像。"),
+      h("p", { class: "hint" }, "顶栏按这里的顺序显示英文职业名。每一页一张横版插图，一枚方邮票头像。职业印象色只影响这一页的画框和头像边。"),
+      h("p", { class: "hint" }, "图片按原文件保存，不压缩，不限制大小。想保持无损，请用 PNG。"),
       ...state.jobs.map((job, index) => jobCard(job, index)),
       h("button", { type: "button", onclick: addJob }, "添加职业")
     ),
@@ -114,44 +122,38 @@ function editor() {
   );
 }
 
-function colorField([key, label]) {
+function colorRow(label, value, onColor) {
   const color = h("input", {
     type: "color",
-    value: normalizeHex(state.theme[key]),
+    value: cssColor(value, "#000000"),
     "aria-label": label,
     oninput: (event) => {
-      state.theme[key] = event.target.value;
-      state.dirty = true;
-      applyTheme(state.theme);
+      const next = event.target.value.toLowerCase();
+      onColor(next, event.target);
       const text = event.target.parentElement.querySelector('input[type="text"]');
-      if (text) text.value = event.target.value;
+      if (text) text.value = next;
     },
   });
   const text = h("input", {
     type: "text",
-    value: state.theme[key] || "",
+    value: value || "",
     spellcheck: "false",
     oninput: (event) => {
-      const value = event.target.value.trim();
-      if (/^#[0-9a-fA-F]{6}$/.test(value)) {
-        state.theme[key] = value.toLowerCase();
-        state.dirty = true;
-        applyTheme(state.theme);
-        color.value = state.theme[key];
+      const next = event.target.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(next)) {
+        const hex = next.toLowerCase();
+        onColor(hex, color);
+        color.value = hex;
       }
     },
   });
   return h("div", { class: "color-field" }, h("label", {}, label), color, text);
 }
 
-function normalizeHex(value) {
-  return /^#[0-9a-fA-F]{6}$/.test(value || "") ? value : "#000000";
-}
-
 function jobCard(job, index) {
   return h(
     "article",
-    { class: "job-card" },
+    { class: "job-card", style: `--job:${cssColor(job.color, FALLBACK_JOB)}` },
     h("h3", {}, job.name || "未命名职业"),
     h("p", { class: "hint" }, `#/job/${job.id}`),
     field("导航名称（英文）", job.name, (value) => {
@@ -160,6 +162,13 @@ function jobCard(job, index) {
     field("一句短文", job.tagline, (value) => {
       job.tagline = value;
     }),
+    colorRow("职业印象色", job.color || FALLBACK_JOB, (next, input) => {
+      job.color = next;
+      state.dirty = true;
+      const card = input.closest(".job-card");
+      if (card) card.style.setProperty("--job", next);
+    }),
+    h("p", { class: "hint" }, "只影响这一页的画框和头像边。"),
     h("label", {}, "正文"),
     h("textarea", {
       value: (job.paragraphs || []).join("\n\n"),
@@ -221,7 +230,7 @@ async function upload(job, key, file, input) {
     const data = await api("/api/upload", { method: "POST", body });
     job[key] = data.path;
     state.dirty = true;
-    state.message = "图片已上传，记得保存。";
+    state.message = "图片已按原文件保存，记得点保存。";
   } catch (error) {
     state.error = error.message;
   }
@@ -235,6 +244,7 @@ function addJob() {
     name: "New Job",
     tagline: "",
     paragraphs: [],
+    color: FALLBACK_JOB,
     banner: "",
     portrait: "",
   });
@@ -262,12 +272,13 @@ function removeJob(index) {
 
 function payload() {
   return {
-    theme: state.theme,
+    theme: { color: cssColor(state.theme.color, FALLBACK_THEME) },
     jobs: state.jobs.map((job) => ({
       id: job.id,
       name: job.name.trim(),
       tagline: job.tagline.trim(),
       paragraphs: job.paragraphs,
+      color: cssColor(job.color, FALLBACK_JOB),
       banner: job.banner,
       portrait: job.portrait,
     })),

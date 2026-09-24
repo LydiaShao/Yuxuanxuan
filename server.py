@@ -9,8 +9,6 @@ import secrets
 import socket
 import threading
 import time
-from email import message_from_bytes
-from email.policy import HTTP
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -23,12 +21,11 @@ ADMIN_PATH = DATA / "admin.json"
 SECRET_PATH = DATA / "secret.key"
 SESSIONS_PATH = DATA / "sessions.json"
 
-MAX_UPLOAD = 12 * 1024 * 1024
 MAX_JSON = 1024 * 1024
-THEME_KEYS = ("background", "surface", "text", "muted", "accent", "frame")
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 SLUG = re.compile(r"^[a-z0-9-]{1,40}$")
 UPLOAD_NAME = re.compile(r"^images/uploads/[A-Za-z0-9._-]{1,80}$")
+BOUNDARY = re.compile(r"""boundary=(?:"([^"]+)"|([^;\s]+))""", re.IGNORECASE)
 TYPES = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
@@ -40,14 +37,8 @@ TYPES = {
     ".webp": "image/webp",
     ".gif": "image/gif",
 }
-DEFAULT_THEME = {
-    "background": "#12151c",
-    "surface": "#1c2230",
-    "text": "#f6f1e7",
-    "muted": "#b3a89a",
-    "accent": "#d4b46a",
-    "frame": "#8a7044",
-}
+DEFAULT_THEME = {"color": "#ff8f8f"}
+DEFAULT_JOB_COLOR = "#7eb6ff"
 
 FAILURES = {}
 SESSIONS = None
@@ -126,6 +117,27 @@ def clean_image(value, strict=True):
     return text
 
 
+def clean_hex(value, label, fallback=None):
+    text = str(value or "").strip()
+    if HEX.match(text):
+        return text.lower()
+    if fallback is None:
+        raise ValueError(f"{label}需要是 #RRGGBB")
+    return fallback
+
+
+def clean_theme(incoming, strict=True):
+    raw = ""
+    if isinstance(incoming, dict):
+        raw = incoming.get("color", incoming.get("accent", ""))
+    try:
+        return {"color": clean_hex(raw, "网站主题色")}
+    except ValueError:
+        if strict:
+            raise
+        return dict(DEFAULT_THEME)
+
+
 def clean_job(job, strict=True):
     if not isinstance(job, dict):
         raise ValueError("职业格式不对")
@@ -142,6 +154,7 @@ def clean_job(job, strict=True):
         "name": name,
         "tagline": str(job.get("tagline", "")).strip()[:160],
         "paragraphs": [item[:2000] for item in text],
+        "color": clean_hex(job.get("color"), "职业印象色", None if strict else DEFAULT_JOB_COLOR),
         "banner": clean_image(job.get("banner"), strict),
         "portrait": clean_image(job.get("portrait"), strict),
     }
@@ -150,15 +163,7 @@ def clean_job(job, strict=True):
 def validate_site(payload):
     if not isinstance(payload, dict):
         raise ValueError("档案格式不对")
-    incoming = payload.get("theme")
-    if not isinstance(incoming, dict):
-        raise ValueError("缺少主题色")
-    theme = {}
-    for key in THEME_KEYS:
-        value = str(incoming.get(key, "")).strip()
-        if not HEX.match(value):
-            raise ValueError(f"{key} 需要是 #RRGGBB")
-        theme[key] = value.lower()
+    theme = clean_theme(payload.get("theme"), strict=True)
     jobs_in = payload.get("jobs")
     if not isinstance(jobs_in, list):
         raise ValueError("缺少职业列表")
@@ -177,13 +182,7 @@ def validate_site(payload):
 
 def public_site():
     raw = load_json(SITE_PATH, {"theme": DEFAULT_THEME, "jobs": []})
-    theme = dict(DEFAULT_THEME)
-    incoming = raw.get("theme") if isinstance(raw, dict) else {}
-    if isinstance(incoming, dict):
-        for key in THEME_KEYS:
-            value = incoming.get(key)
-            if isinstance(value, str) and HEX.match(value):
-                theme[key] = value.lower()
+    theme = clean_theme(raw.get("theme") if isinstance(raw, dict) else {}, strict=False)
     jobs = []
     seen = set()
     source = raw.get("jobs") if isinstance(raw, dict) and isinstance(raw.get("jobs"), list) else []
@@ -211,16 +210,82 @@ def sniff_image(blob):
     return None
 
 
-def parse_multipart(content_type, body):
-    header = f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8")
-    message = message_from_bytes(header + body, policy=HTTP)
-    if not message.is_multipart():
-        return []
-    parts = []
-    for part in message.iter_parts():
-        payload = part.get_payload(decode=True) or b""
-        parts.append((part.get_filename(), payload))
-    return parts
+def boundary_token(content_type):
+    match = BOUNDARY.search(content_type or "")
+    if not match:
+        return None
+    token = (match.group(1) or match.group(2) or "").strip()
+    if not token or len(token) > 70:
+        return None
+    if any(ord(char) < 32 or ord(char) > 126 for char in token):
+        return None
+    return token
+
+
+class BudgetReader:
+    def __init__(self, raw, remaining):
+        self.raw = raw
+        self.remaining = remaining
+
+    def read(self, size):
+        if self.remaining <= 0:
+            return b""
+        chunk = self.raw.read(min(size, self.remaining))
+        if not chunk:
+            return b""
+        self.remaining -= len(chunk)
+        return chunk
+
+    def drain(self):
+        while self.remaining > 0:
+            if not self.read(256 * 1024):
+                break
+
+
+def read_until(reader, buf, marker, cap):
+    while marker not in buf:
+        if len(buf) > cap:
+            raise ValueError("上传头太大")
+        chunk = reader.read(8192)
+        if not chunk:
+            raise ValueError("上传不完整")
+        buf += chunk
+    index = buf.index(marker)
+    return buf[index + len(marker) :]
+
+
+def save_multipart_image(reader, boundary, dest):
+    """Stream the first file part to dest without rewriting the bytes."""
+    opener = b"--" + boundary.encode("latin-1")
+    buf = read_until(reader, b"", opener + b"\r\n", 65536)
+    buf = read_until(reader, buf, b"\r\n\r\n", 65536)
+    closer = b"\r\n" + opener
+    head = bytearray()
+    with dest.open("wb") as handle:
+        while True:
+            found = buf.find(closer)
+            if found >= 0:
+                piece = buf[:found]
+                if len(head) < 16:
+                    head.extend(piece[: 16 - len(head)])
+                handle.write(piece)
+                break
+            keep = len(closer) - 1
+            if len(buf) > keep:
+                piece = buf[:-keep]
+                if len(head) < 16:
+                    head.extend(piece[: 16 - len(head)])
+                handle.write(piece)
+                buf = buf[-keep:]
+            if len(head) >= 16 and sniff_image(bytes(head)) is None:
+                reader.drain()
+                raise ValueError("只接受 JPG、PNG、WEBP 或 GIF")
+            chunk = reader.read(256 * 1024)
+            if not chunk:
+                raise ValueError("上传不完整")
+            buf += chunk
+    reader.drain()
+    return bytes(head)
 
 
 def static_file(url_path):
@@ -438,23 +503,36 @@ class Handler(BaseHTTPRequestHandler):
     def handle_upload(self):
         if not self.require_admin():
             return
-        body = self.read_body(MAX_UPLOAD)
-        if body is None:
-            self.send_json(413, {"error": "图片需要小于 12MB"})
-            return
-        content_type = self.headers.get("Content-Type", "")
-        if "multipart/form-data" not in content_type:
+        boundary = boundary_token(self.headers.get("Content-Type", ""))
+        if boundary is None:
             self.send_json(400, {"error": "请用表单上传图片"})
             return
-        parts = parse_multipart(content_type, body)
-        blob = next((payload for _name, payload in parts if payload), b"")
-        extension = sniff_image(blob)
-        if extension is None:
-            self.send_json(400, {"error": "只接受 JPG、PNG、WEBP 或 GIF"})
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            self.send_json(411, {"error": "缺少内容长度"})
+            return
+        if length < 0:
+            self.send_json(400, {"error": "缺少内容长度"})
             return
         UPLOADS.mkdir(parents=True, exist_ok=True)
-        name = f"{secrets.token_hex(12)}{extension}"
-        (UPLOADS / name).write_bytes(blob)
+        temporary = UPLOADS / f".{secrets.token_hex(12)}.part"
+        try:
+            save_multipart_image(BudgetReader(self.rfile, length), boundary, temporary)
+            with temporary.open("rb") as handle:
+                extension = sniff_image(handle.read(16))
+            if extension is None or temporary.stat().st_size == 0:
+                raise ValueError("只接受 JPG、PNG、WEBP 或 GIF")
+            name = f"{secrets.token_hex(12)}{extension}"
+            temporary.replace(UPLOADS / name)
+        except ValueError as error:
+            temporary.unlink(missing_ok=True)
+            self.send_json(400, {"error": str(error)})
+            return
+        except OSError:
+            temporary.unlink(missing_ok=True)
+            self.send_json(500, {"error": "图片没有保存成功"})
+            return
         self.send_json(200, {"path": f"images/uploads/{name}"})
 
 
@@ -478,6 +556,8 @@ def main():
     UPLOADS.mkdir(parents=True, exist_ok=True)
     if not SITE_PATH.exists():
         atomic_write(SITE_PATH, {"theme": DEFAULT_THEME, "jobs": []})
+    for stale in UPLOADS.glob(".*.part"):
+        stale.unlink(missing_ok=True)
     ipv4 = IPv4Server(("0.0.0.0", 4173), Handler)
     ipv6 = IPv6Server(("::", 4173), Handler)
     threading.Thread(target=ipv4.serve_forever, name="http-ipv4", daemon=True).start()
