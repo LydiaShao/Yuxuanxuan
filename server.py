@@ -7,6 +7,7 @@ import json
 import re
 import secrets
 import socket
+import threading
 import time
 from email import message_from_bytes
 from email.policy import HTTP
@@ -457,12 +458,18 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {"path": f"images/uploads/{name}"})
 
 
-class DualStackServer(ThreadingHTTPServer):
+class IPv4Server(ThreadingHTTPServer):
+    address_family = socket.AF_INET
+    allow_reuse_address = True
+
+
+class IPv6Server(ThreadingHTTPServer):
     address_family = socket.AF_INET6
     allow_reuse_address = True
 
     def server_bind(self):
-        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        # Keep this socket off the IPv4 port so 0.0.0.0:4173 stays visible to port forwarding.
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
         super().server_bind()
 
 
@@ -471,9 +478,11 @@ def main():
     UPLOADS.mkdir(parents=True, exist_ok=True)
     if not SITE_PATH.exists():
         atomic_write(SITE_PATH, {"theme": DEFAULT_THEME, "jobs": []})
-    server = DualStackServer(("::", 4173), Handler)
+    ipv4 = IPv4Server(("0.0.0.0", 4173), Handler)
+    ipv6 = IPv6Server(("::", 4173), Handler)
+    threading.Thread(target=ipv4.serve_forever, name="http-ipv4", daemon=True).start()
     print("Yuxuanxuan http://127.0.0.1:4173")
-    server.serve_forever()
+    ipv6.serve_forever()
 
 
 if __name__ == "__main__":
