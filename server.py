@@ -6,6 +6,7 @@ import hmac
 import json
 import re
 import secrets
+import socket
 import time
 from email import message_from_bytes
 from email.policy import HTTP
@@ -456,12 +457,21 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {"path": f"images/uploads/{name}"})
 
 
+class DualStackServer(ThreadingHTTPServer):
+    address_family = socket.AF_INET6
+    allow_reuse_address = True
+
+    def server_bind(self):
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
+
+
 def main():
     DATA.mkdir(parents=True, exist_ok=True)
     UPLOADS.mkdir(parents=True, exist_ok=True)
     if not SITE_PATH.exists():
         atomic_write(SITE_PATH, {"theme": DEFAULT_THEME, "jobs": []})
-    server = ThreadingHTTPServer(("0.0.0.0", 4173), Handler)
+    server = DualStackServer(("::", 4173), Handler)
     print("Yuxuanxuan http://127.0.0.1:4173")
     server.serve_forever()
 
