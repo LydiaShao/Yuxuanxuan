@@ -1,7 +1,7 @@
 "use strict";
 
 const SITE_NAME = "Yuxuanxuan";
-const FALLBACK_JOB = "#7eb6ff";
+const FALLBACK_JOB = "#a68462";
 
 function h(tag, props, ...children) {
   const node = document.createElement(tag);
@@ -23,25 +23,14 @@ function cssColor(value, fallback) {
 
 function applyTheme(theme) {
   const color = cssColor(theme && (theme.color || theme.accent), "");
-  if (!color) return;
-  document.documentElement.style.setProperty("--theme", color);
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", color);
+  if (color) document.documentElement.style.setProperty("--theme", color);
 }
 
-function plate(className, src, alt, emptyLabel) {
+function plate(className, src, alt) {
+  if (!src) return null;
   const frame = h("figure", { class: className });
-  if (!src) {
-    frame.classList.add("is-empty");
-    frame.append(emptyLabel);
-    return frame;
-  }
   const image = h("img", { src, alt });
-  image.addEventListener("error", () => {
-    image.remove();
-    frame.classList.add("is-empty");
-    frame.append(emptyLabel);
-  });
+  image.addEventListener("error", () => frame.remove());
   frame.append(image);
   return frame;
 }
@@ -49,33 +38,39 @@ function plate(className, src, alt, emptyLabel) {
 function renderNav(jobs, activeId) {
   const nav = document.getElementById("job-nav");
   nav.replaceChildren(
-    ...jobs.map((job) => {
-      const color = cssColor(job.color, FALLBACK_JOB);
-      return h(
+    ...jobs.map((job) =>
+      h(
         "a",
         {
           href: `#/job/${encodeURIComponent(job.id)}`,
           "aria-current": job.id === activeId ? "page" : null,
-          style: `--job:${color}`,
+          style: `--job:${cssColor(job.color, FALLBACK_JOB)}`,
         },
-        h("i", { class: "dot", "aria-hidden": "true" }),
         job.name
-      );
-    })
+      )
+    )
   );
 }
 
 function renderJob(job) {
   const paragraphs = Array.isArray(job.paragraphs) ? job.paragraphs.filter(Boolean) : [];
-  const color = cssColor(job.color, FALLBACK_JOB);
+  const extras = Array.isArray(job.images) ? job.images.filter(Boolean) : [];
+  const stamp = plate("stamp", job.portrait, `${job.name} portrait`);
+  const gallery = extras.length
+    ? h(
+        "div",
+        { class: "gallery" },
+        extras.map((src, index) => plate("plate", src, `${job.name} picture ${index + 1}`))
+      )
+    : null;
   return h(
     "article",
-    { class: "job", style: `--job:${color}` },
-    plate("banner", job.banner, `${job.name} illustration`, "Landscape plate"),
+    { class: "job", style: `--job:${cssColor(job.color, FALLBACK_JOB)}` },
+    plate("banner", job.banner, `${job.name} illustration`),
     h(
       "div",
-      { class: "job-head" },
-      plate("stamp", job.portrait, `${job.name} portrait`, "Stamp"),
+      { class: stamp ? "job-head" : "job-head is-plain" },
+      stamp,
       h(
         "div",
         {},
@@ -84,7 +79,8 @@ function renderJob(job) {
         job.tagline ? h("p", { class: "tagline" }, job.tagline) : null
       )
     ),
-    paragraphs.length ? h("div", { class: "prose" }, paragraphs.map((paragraph) => h("p", {}, paragraph))) : null
+    paragraphs.length ? h("div", { class: "prose" }, paragraphs.map((paragraph) => h("p", {}, paragraph))) : null,
+    gallery
   );
 }
 
@@ -94,7 +90,7 @@ function renderEmpty() {
     { class: "empty" },
     h("p", { class: "kicker" }, "Archive"),
     h("h1", {}, "No jobs yet"),
-    h("p", {}, "Each job page holds one landscape plate and one square stamp portrait."),
+    h("p", {}, "A job page can hold a landscape plate, a stamp portrait, and any other pictures that belong with it."),
     h("a", { class: "text-link", href: "/admin" }, "Open admin")
   );
 }

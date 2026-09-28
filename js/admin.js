@@ -1,7 +1,7 @@
 "use strict";
 
-const FALLBACK_THEME = "#ff8f8f";
-const FALLBACK_JOB = "#7eb6ff";
+const FALLBACK_THEME = "#c9a27a";
+const FALLBACK_JOB = "#a68462";
 
 const state = {
   mode: "loading",
@@ -113,7 +113,7 @@ function editor() {
       "section",
       { class: "panel" },
       h("h2", {}, "职业"),
-      h("p", { class: "hint" }, "顶栏按这里的顺序显示英文职业名。每一页一张横版插图，一枚方邮票头像。职业印象色只影响这一页的画框和头像边。"),
+      h("p", { class: "hint" }, "顶栏按这里的顺序显示英文职业名。横版插图和方邮票是固定位置，可以不传，前台不会因为缺图报错。下面还可以再加图片。职业印象色只用在这一页的画框上。"),
       h("p", { class: "hint" }, "图片按原文件保存，不压缩，不限制大小。想保持无损，请用 PNG。"),
       ...state.jobs.map((job, index) => jobCard(job, index)),
       h("button", { type: "button", onclick: addJob }, "添加职业")
@@ -168,7 +168,7 @@ function jobCard(job, index) {
       const card = input.closest(".job-card");
       if (card) card.style.setProperty("--job", next);
     }),
-    h("p", { class: "hint" }, "只影响这一页的画框和头像边。"),
+    h("p", { class: "hint" }, "只用在这一页的画框上。"),
     h("label", {}, "正文"),
     h("textarea", {
       value: (job.paragraphs || []).join("\n\n"),
@@ -184,6 +184,7 @@ function jobCard(job, index) {
       uploadSlot(job, "banner", "横版插图", "banner"),
       uploadSlot(job, "portrait", "方邮票头像", "stamp")
     ),
+    extraImages(job),
     h(
       "div",
       { class: "row-actions" },
@@ -212,11 +213,75 @@ function uploadSlot(job, key, label, frameClass) {
     accept: "image/jpeg,image/png,image/webp,image/gif",
     onchange: (event) => upload(job, key, event.target.files[0], event.target),
   });
-  const preview = job[key]
-    ? h("img", { src: job[key], alt: "" })
-    : h("span", {}, key === "banner" ? "Landscape" : "Stamp");
+  const preview = job[key] ? h("img", { src: job[key], alt: "" }) : h("span", {}, "未上传");
   const frame = h("figure", { class: `${frameClass}${job[key] ? "" : " is-empty"}` }, preview);
   return h("div", {}, h("label", {}, label), frame, input);
+}
+
+function extraImages(job) {
+  if (!Array.isArray(job.images)) job.images = [];
+  const input = h("input", {
+    type: "file",
+    accept: "image/jpeg,image/png,image/webp,image/gif",
+    onchange: (event) => uploadExtra(job, event.target.files[0], event.target),
+  });
+  return h(
+    "div",
+    {},
+    h("label", {}, "更多图片"),
+    h("div", { class: "extra-list" }, job.images.map((src, index) => extraItem(job, src, index))),
+    input
+  );
+}
+
+function extraItem(job, src, index) {
+  return h(
+    "div",
+    { class: "extra-item" },
+    h("figure", {}, h("img", { src, alt: "" })),
+    h(
+      "div",
+      { class: "row-actions" },
+      h("button", { type: "button", onclick: () => moveImage(job, index, -1), disabled: index === 0 }, "上移"),
+      h("button", { type: "button", onclick: () => moveImage(job, index, 1), disabled: index === job.images.length - 1 }, "下移"),
+      h("button", { class: "danger", type: "button", onclick: () => removeImage(job, index) }, "移除")
+    )
+  );
+}
+
+function moveImage(job, index, step) {
+  const next = index + step;
+  if (next < 0 || next >= job.images.length) return;
+  const [src] = job.images.splice(index, 1);
+  job.images.splice(next, 0, src);
+  state.dirty = true;
+  paint();
+}
+
+function removeImage(job, index) {
+  job.images.splice(index, 1);
+  state.dirty = true;
+  paint();
+}
+
+async function uploadExtra(job, file, input) {
+  if (!file) return;
+  state.error = "";
+  state.message = "正在上传…";
+  paint();
+  try {
+    const body = new FormData();
+    body.append("file", file);
+    const data = await api("/api/upload", { method: "POST", body });
+    if (!Array.isArray(job.images)) job.images = [];
+    job.images.push(data.path);
+    state.dirty = true;
+    state.message = "图片已按原文件保存，记得点保存。";
+  } catch (error) {
+    state.error = error.message;
+  }
+  input.value = "";
+  paint();
 }
 
 async function upload(job, key, file, input) {
@@ -247,6 +312,7 @@ function addJob() {
     color: FALLBACK_JOB,
     banner: "",
     portrait: "",
+    images: [],
   });
   state.dirty = true;
   state.message = "";
@@ -281,6 +347,7 @@ function payload() {
       color: cssColor(job.color, FALLBACK_JOB),
       banner: job.banner,
       portrait: job.portrait,
+      images: Array.isArray(job.images) ? job.images.filter(Boolean) : [],
     })),
   };
 }

@@ -37,8 +37,9 @@ TYPES = {
     ".webp": "image/webp",
     ".gif": "image/gif",
 }
-DEFAULT_THEME = {"color": "#ff8f8f"}
-DEFAULT_JOB_COLOR = "#7eb6ff"
+DEFAULT_THEME = {"color": "#c9a27a"}
+DEFAULT_JOB_COLOR = "#a68462"
+MAX_IMAGES = 40
 
 FAILURES = {}
 SESSIONS = None
@@ -138,6 +139,23 @@ def clean_theme(incoming, strict=True):
         return dict(DEFAULT_THEME)
 
 
+def clean_images(value, strict):
+    if value in (None, ""):
+        return []
+    if not isinstance(value, list):
+        if strict:
+            raise ValueError("更多图片格式不对")
+        return []
+    if strict and len(value) > MAX_IMAGES:
+        raise ValueError(f"每个职业最多 {MAX_IMAGES} 张更多图片")
+    images = []
+    for item in value[:MAX_IMAGES]:
+        cleaned = clean_image(item, strict)
+        if cleaned:
+            images.append(cleaned)
+    return images
+
+
 def clean_job(job, strict=True):
     if not isinstance(job, dict):
         raise ValueError("职业格式不对")
@@ -157,6 +175,7 @@ def clean_job(job, strict=True):
         "color": clean_hex(job.get("color"), "职业印象色", None if strict else DEFAULT_JOB_COLOR),
         "banner": clean_image(job.get("banner"), strict),
         "portrait": clean_image(job.get("portrait"), strict),
+        "images": clean_images(job.get("images"), strict),
     }
 
 
