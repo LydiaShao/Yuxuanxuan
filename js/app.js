@@ -567,34 +567,30 @@ function bindStoryDrag(node, job, item, grab) {
 
 function bindWrapResize(handle, figure, job, item) {
   let resizing = null;
-  handle.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const rect = figure.getBoundingClientRect();
-    const flow = figure.parentElement;
-    resizing = {
-      anchor: item.side === "right" ? rect.right : rect.left,
-      flow: flow ? flow.getBoundingClientRect().width : rect.width,
-    };
-    try { handle.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
-  });
-  handle.addEventListener("pointermove", (event) => {
+
+  const move = (event) => {
     if (!resizing) return;
     const px = item.side === "right" ? resizing.anchor - event.clientX : event.clientX - resizing.anchor;
     const percent = Math.min(100, Math.max(8, (px / Math.max(resizing.flow, 1)) * 100));
     resizing.percent = Math.round(percent * 100) / 100;
     figure.style.width = `${resizing.percent}%`;
     if (item.type === "text" && resizing.percent < 100) {
-      figure.classList.add("is-sized", item.side === "right" ? "is-right" : "is-left");
-      figure.classList.toggle("is-left", item.side !== "right");
-      figure.classList.toggle("is-right", item.side === "right");
+      const side = item.side === "right" ? "right" : "left";
+      figure.classList.add("is-sized");
+      figure.classList.toggle("is-left", side === "left");
+      figure.classList.toggle("is-right", side === "right");
     }
-  });
+  };
+
   const finish = () => {
     if (!resizing) return;
     const percent = resizing.percent;
     resizing = null;
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("mousemove", move);
+    window.removeEventListener("pointerup", finish);
+    window.removeEventListener("mouseup", finish);
+    window.removeEventListener("pointercancel", finish);
     if (percent == null) return;
     if (percent >= 99.5) delete item.w;
     else {
@@ -605,8 +601,22 @@ function bindWrapResize(handle, figure, job, item) {
     if (item.type === "image") refreshPictures();
     persist().catch((error) => window.alert(error.message));
   };
-  handle.addEventListener("pointerup", finish);
-  handle.addEventListener("pointercancel", finish);
+
+  handle.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = figure.getBoundingClientRect();
+    const flow = figure.parentElement;
+    resizing = {
+      anchor: item.side === "right" ? rect.right : rect.left,
+      flow: flow ? flow.getBoundingClientRect().width : rect.width,
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    try { handle.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
+  });
 }
 
 function addText(job, clientY) {

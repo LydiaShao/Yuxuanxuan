@@ -599,14 +599,14 @@ body.is-admin .wrap-pic {
 
 body.is-admin .resize {
   position: absolute;
-  right: -0.15rem;
-  bottom: -0.15rem;
+  right: -0.2rem;
+  bottom: -0.2rem;
   z-index: 2;
-  width: 0.85rem;
-  height: 0.85rem;
+  width: 1.05rem;
+  height: 1.05rem;
   border-radius: 0.15rem;
   background: var(--text);
-  cursor: nwse-resize;
+  cursor: ew-resize;
   box-shadow: 0 0.08rem 0.2rem rgba(20, 16, 14, 0.35);
 }
 
