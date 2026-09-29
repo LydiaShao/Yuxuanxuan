@@ -1,11 +1,12 @@
 :root {
   --theme: #c9a27a;
   --job: #a68462;
-  --background: #1c1816;
-  --surface: #2a2420;
-  --text: #f6f0e8;
-  --muted: #b7ab9f;
+  --background: color-mix(in srgb, var(--theme) 42%, #120e0c);
+  --surface: color-mix(in srgb, var(--theme) 24%, #1c1612);
+  --text: color-mix(in srgb, var(--theme) 12%, #f7f2ec);
+  --muted: color-mix(in srgb, var(--theme) 28%, #b7ab9f);
   --accent: var(--theme);
+  --on-accent: #1c140e;
   --frame: var(--job);
   --display: "Fraunces", "Noto Serif SC", Palatino, serif;
   --body: "Literata", "Noto Serif SC", Palatino, serif;
@@ -31,11 +32,7 @@ body {
   font-family: var(--ui);
   font-size: 1.02rem;
   line-height: 1.65;
-  background:
-    radial-gradient(1100px 520px at 8% -10%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 55%),
-    radial-gradient(800px 420px at 100% 0%, color-mix(in srgb, var(--frame) 22%, transparent), transparent 50%),
-    var(--background);
-  background-color: var(--background);
+  background: var(--background);
 }
 
 img {
@@ -83,9 +80,8 @@ textarea {
   margin-inline: auto;
 }
 
-main.wrap {
+main#content {
   flex: 1;
-  padding-bottom: 4rem;
   outline: none;
 }
 
@@ -93,9 +89,8 @@ main.wrap {
   position: sticky;
   top: 0;
   z-index: 4;
-  background: color-mix(in srgb, var(--background) 88%, transparent);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid color-mix(in srgb, var(--frame) 70%, transparent);
+  background: var(--background);
+  border-bottom: 2px solid var(--accent);
 }
 
 .bar {
@@ -139,45 +134,70 @@ main.wrap {
   background: color-mix(in srgb, var(--theme) 28%, transparent);
 }
 
+.job {
+  background: var(--job-bg, var(--background));
+  color: var(--job-ink, var(--text));
+  min-height: calc(100vh - 7rem);
+  padding-bottom: 3rem;
+}
+
 .banner,
-.stamp,
+.portrait,
 .gallery figure {
-  background: var(--surface);
-  border: 1.5px solid color-mix(in srgb, var(--frame) 82%, var(--text));
-  border-radius: 0.9rem;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+  margin: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .banner {
-  margin: 1.6rem 0 0;
-  padding: 0.7rem;
-  aspect-ratio: 2.2 / 1;
-  display: grid;
+  position: relative;
+  width: 100%;
 }
 
-.stamp {
-  width: 10.5rem;
-  aspect-ratio: 1;
-  padding: 0.45rem;
-  display: grid;
+.banner img {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 
-.banner img,
-.stamp img,
+.banner::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 48%;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--job) 72%, transparent) 52%, var(--job-bg, var(--background)));
+  pointer-events: none;
+}
+
+.feed {
+  width: min(760px, calc(100% - 2.4rem));
+  margin: 0 auto;
+  padding-top: 1.15rem;
+}
+
+.feed.has-cover {
+  padding-top: 0;
+}
+
+.portrait {
+  width: 7.4rem;
+  margin: 0 0 0.8rem;
+}
+
+.feed.has-cover .portrait {
+  position: relative;
+  z-index: 1;
+  margin-top: -2.6rem;
+}
+
+.portrait img,
 .gallery img {
   width: 100%;
-  height: 100%;
+  height: auto;
   display: block;
-  border-radius: 0.55rem;
-}
-
-.banner img,
-.gallery img {
-  object-fit: contain;
-}
-
-.stamp img {
-  object-fit: cover;
 }
 
 .is-empty {
@@ -187,18 +207,6 @@ main.wrap {
   font-size: 0.9rem;
   text-align: center;
   padding: 1rem;
-}
-
-.job-head {
-  display: grid;
-  grid-template-columns: 10.5rem minmax(0, 1fr);
-  gap: 1.25rem 1.6rem;
-  align-items: center;
-  margin-top: 1.45rem;
-}
-
-.job-head.is-plain {
-  grid-template-columns: minmax(0, 1fr);
 }
 
 .kicker {
@@ -213,17 +221,17 @@ h1 {
   margin: 0;
   font-family: var(--display);
   font-weight: 500;
-  font-size: clamp(2.15rem, 4.6vw, 3.3rem);
+  font-size: clamp(1.9rem, 4vw, 2.7rem);
   letter-spacing: 0;
-  line-height: 1.12;
+  line-height: 1.15;
 }
 
 .tagline {
-  margin: 0.7rem 0 0;
-  color: var(--muted);
+  margin: 0.45rem 0 0;
+  color: var(--job-muted, var(--muted));
   font-family: var(--body);
   font-style: italic;
-  font-size: 1.08rem;
+  font-size: 1.05rem;
 }
 
 .prose p {
@@ -231,10 +239,7 @@ h1 {
 }
 
 .prose {
-  max-width: 40rem;
-  margin-top: 1.8rem;
-  padding-left: 1rem;
-  border-left: 2px solid color-mix(in srgb, var(--frame) 75%, var(--text));
+  margin-top: 1rem;
   font-family: var(--body);
   font-size: 1.05rem;
   line-height: 1.85;
@@ -243,17 +248,8 @@ h1 {
 .gallery {
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
-  margin-top: 1.8rem;
-}
-
-.gallery figure {
-  margin: 0;
-  padding: 0.55rem;
-}
-
-.gallery img {
-  height: auto;
+  gap: 0.55rem;
+  margin-top: 1.2rem;
 }
 
 .empty,
@@ -315,16 +311,16 @@ textarea:focus-visible {
     width: 100%;
   }
 
-  .job-head {
-    grid-template-columns: 6.4rem minmax(0, 1fr);
+  .feed {
+    width: min(760px, calc(100% - 1.2rem));
   }
 
-  .job-head.is-plain {
-    grid-template-columns: minmax(0, 1fr);
+  .portrait {
+    width: 5.6rem;
   }
 
-  .stamp {
-    width: 6.4rem;
+  .feed.has-cover .portrait {
+    margin-top: -1.8rem;
   }
 }
 

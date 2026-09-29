@@ -23,7 +23,7 @@ function cssColor(value, fallback) {
 
 function applyTheme(theme) {
   const color = cssColor(theme && (theme.color || theme.accent), "");
-  if (color) document.documentElement.style.setProperty("--theme", color);
+  if (color) YxPalette.applySiteScheme(color);
 }
 
 function plate(className, src, alt) {
@@ -55,39 +55,36 @@ function renderNav(jobs, activeId) {
 function renderJob(job) {
   const paragraphs = Array.isArray(job.paragraphs) ? job.paragraphs.filter(Boolean) : [];
   const extras = Array.isArray(job.images) ? job.images.filter(Boolean) : [];
-  const stamp = plate("stamp", job.portrait, `${job.name} portrait`);
-  const gallery = extras.length
-    ? h(
-        "div",
-        { class: "gallery" },
-        extras.map((src, index) => plate("plate", src, `${job.name} picture ${index + 1}`))
-      )
-    : null;
-  return h(
+  const banner = plate("banner", job.banner, `${job.name} illustration`);
+  const portrait = plate("portrait", job.portrait, `${job.name} portrait`);
+  const article = h(
     "article",
-    { class: "job", style: `--job:${cssColor(job.color, FALLBACK_JOB)}` },
-    plate("banner", job.banner, `${job.name} illustration`),
+    { class: "job" },
+    banner,
     h(
       "div",
-      { class: stamp ? "job-head" : "job-head is-plain" },
-      stamp,
-      h(
-        "div",
-        {},
-        h("p", { class: "kicker" }, "Job"),
-        h("h1", {}, job.name),
-        job.tagline ? h("p", { class: "tagline" }, job.tagline) : null
-      )
+      { class: banner && portrait ? "feed has-cover" : "feed" },
+      portrait,
+      h("h1", {}, job.name),
+      job.tagline ? h("p", { class: "tagline" }, job.tagline) : null,
+      paragraphs.length ? h("div", { class: "prose" }, paragraphs.map((paragraph) => h("p", {}, paragraph))) : null
     ),
-    paragraphs.length ? h("div", { class: "prose" }, paragraphs.map((paragraph) => h("p", {}, paragraph))) : null,
-    gallery
+    extras.length
+      ? h(
+          "div",
+          { class: "gallery" },
+          extras.map((src, index) => plate("plate", src, `${job.name} picture ${index + 1}`))
+        )
+      : null
   );
+  YxPalette.applyJobScheme(article, cssColor(job.color, FALLBACK_JOB));
+  return article;
 }
 
 function renderEmpty() {
   return h(
     "section",
-    { class: "empty" },
+    { class: "empty wrap" },
     h("p", { class: "kicker" }, "Archive"),
     h("h1", {}, "No jobs yet"),
     h("p", {}, "A job page can hold a landscape plate, a stamp portrait, and any other pictures that belong with it."),
@@ -98,7 +95,7 @@ function renderEmpty() {
 function renderMissing() {
   return h(
     "section",
-    { class: "missing" },
+    { class: "missing wrap" },
     h("p", { class: "kicker" }, "Missing"),
     h("h1", {}, "This job is not on the bar"),
     h("a", { class: "text-link", href: "#/" }, "Back to the archive")

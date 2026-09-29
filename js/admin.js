@@ -33,7 +33,7 @@ function cssColor(value, fallback) {
 
 function applyTheme(theme) {
   const color = cssColor(theme && (theme.color || theme.accent), "");
-  if (color) document.documentElement.style.setProperty("--theme", color);
+  if (color) YxPalette.applySiteScheme(color);
 }
 
 async function api(path, options = {}) {
@@ -102,18 +102,19 @@ function editor() {
       "section",
       { class: "panel" },
       h("h2", {}, "网站主题色"),
-      h("p", { class: "hint" }, "所有职业共用。顶栏、按钮和页面点缀会跟着它走。"),
-      colorRow("网站主题色", state.theme.color, (next) => {
+      h("p", { class: "hint" }, "所有职业共用。会按这个颜色生成整站的背景、顶栏和文字。"),
+      colorRow("网站主题色", state.theme.color, (next, source) => {
         state.theme.color = next;
         state.dirty = true;
         applyTheme(state.theme);
+        paintScheme(source.closest(".color-field"), next);
       })
     ),
     h(
       "section",
       { class: "panel" },
       h("h2", {}, "职业"),
-      h("p", { class: "hint" }, "顶栏按这里的顺序显示英文职业名。横版插图和方邮票是固定位置，可以不传，前台不会因为缺图报错。下面还可以再加图片。职业印象色只用在这一页的画框上。"),
+      h("p", { class: "hint" }, "顶栏按这里的顺序显示英文职业名。横图铺满页面，底部渐变成这一页的职业色。头像不加框。横版和头像可以不传。故事下面还能再加图。"),
       h("p", { class: "hint" }, "图片按原文件保存，不压缩，不限制大小。想保持无损，请用 PNG。"),
       ...state.jobs.map((job, index) => jobCard(job, index)),
       h("button", { type: "button", onclick: addJob }, "添加职业")
@@ -147,13 +148,30 @@ function colorRow(label, value, onColor) {
       }
     },
   });
-  return h("div", { class: "color-field" }, h("label", {}, label), color, text);
+  const scheme = YxPalette.schemeFrom(cssColor(value, "#000000"));
+  const swatch = (key, title) => h("i", { class: "swatch", "data-swatch": key, title, style: `background:${scheme[key]}` });
+  return h(
+    "div",
+    { class: "color-field" },
+    h("label", {}, label),
+    color,
+    text,
+    h("div", { class: "scheme" }, swatch("bg", "背景"), swatch("surface", "面板"), swatch("accent", "主色"), swatch("soft", "渐变"), h("span", { class: "hint" }, "背景、面板、主色、渐变"))
+  );
+}
+
+function paintScheme(field, hex) {
+  if (!field) return;
+  const scheme = YxPalette.schemeFrom(hex);
+  field.querySelectorAll("[data-swatch]").forEach((node) => {
+    node.style.background = scheme[node.getAttribute("data-swatch")];
+  });
 }
 
 function jobCard(job, index) {
-  return h(
+  const card = h(
     "article",
-    { class: "job-card", style: `--job:${cssColor(job.color, FALLBACK_JOB)}` },
+    { class: "job-card" },
     h("h3", {}, job.name || "未命名职业"),
     h("p", { class: "hint" }, `#/job/${job.id}`),
     field("导航名称（英文）", job.name, (value) => {
@@ -166,9 +184,10 @@ function jobCard(job, index) {
       job.color = next;
       state.dirty = true;
       const card = input.closest(".job-card");
-      if (card) card.style.setProperty("--job", next);
+      if (card) YxPalette.applyJobScheme(card, next);
+      paintScheme(input.closest(".color-field"), next);
     }),
-    h("p", { class: "hint" }, "只用在这一页的画框上。"),
+    h("p", { class: "hint" }, "会生成这一页的背景，横图底部渐变到这个颜色。"),
     h("label", {}, "正文"),
     h("textarea", {
       value: (job.paragraphs || []).join("\n\n"),
@@ -193,6 +212,8 @@ function jobCard(job, index) {
       h("button", { class: "danger", type: "button", onclick: () => removeJob(index) }, "删除")
     )
   );
+  YxPalette.applyJobScheme(card, cssColor(job.color, FALLBACK_JOB));
+  return card;
 }
 
 function field(label, value, onInput) {
