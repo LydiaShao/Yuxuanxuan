@@ -333,8 +333,9 @@ function bannerDisplay(src) {
 }
 
 function sashDisplay(src) {
-  const tall = window.innerHeight * (window.devicePixelRatio || 1);
-  return displayPath(src, Math.max(tall * 1.15, 1080), 90);
+  const dpr = window.devicePixelRatio || 1;
+  const tall = Math.max(window.innerHeight * dpr * 1.2, 1280);
+  return displayPath(src, tall, 90);
 }
 
 function galleryDisplay(src) {
@@ -460,6 +461,12 @@ function renderJob(job) {
     replace: () => replaceSlot(job, "sash"),
     remove: () => clearSlot(job, "sash"),
   });
+  if (sash) {
+    const image = sash.querySelector("img");
+    const clip = h("div", { class: "sash-clip" });
+    if (image) clip.append(image);
+    sash.append(clip);
+  }
   const portrait = plate("portrait", job.portrait, `${job.name} portrait`, {
     replace: () => replaceSlot(job, "portrait"),
   });
