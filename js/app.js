@@ -274,8 +274,7 @@ function renderJob(job) {
       "h1",
       {},
       h("span", { class: "name-ornament", "aria-hidden": "true" }, h("span")),
-      h("span", { class: "name-text" }, job.name),
-      h("span", { class: "name-ornament name-ornament-end", "aria-hidden": "true" }, h("span"))
+      h("span", { class: "name-text" }, job.name)
     ),
     job.tagline ? h("p", { class: "tagline" }, job.tagline) : null
   );

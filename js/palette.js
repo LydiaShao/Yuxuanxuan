@@ -44,3 +44,11 @@
 
   global.YxPalette = { JOB_DEFAULTS, jobColors, applyJobColors, hex };
 })(window);
+
+(function () {
+  const bar = document.querySelector(".topbar");
+  if (!bar) return;
+  const sync = () => bar.classList.toggle("is-top", window.scrollY < 2);
+  sync();
+  window.addEventListener("scroll", sync, { passive: true });
+})();

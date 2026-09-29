@@ -86,7 +86,7 @@ main#content {
 }
 
 .topbar {
-  --fade: 7rem;
+  --fade: 0.55rem;
   position: sticky;
   top: 0;
   z-index: 4;
@@ -104,10 +104,15 @@ main#content {
   top: 0;
   bottom: calc(var(--fade) * -1);
   background: color-mix(in srgb, var(--bar) 52%, transparent);
-  backdrop-filter: blur(22px);
+  backdrop-filter: blur(16px);
   pointer-events: none;
   -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--fade)), transparent 100%);
   mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--fade)), transparent 100%);
+}
+
+.topbar.is-top::before {
+  opacity: 0;
+  backdrop-filter: none;
 }
 
 .bar {
@@ -321,10 +326,6 @@ h1 {
   margin: 0 0 0.45rem;
   color: var(--text);
   filter: drop-shadow(0 0.08rem 0.22rem rgba(20, 16, 14, 0.38));
-}
-
-.name-ornament-end {
-  margin: 0.45rem 0 0;
 }
 
 .name-ornament::before,
