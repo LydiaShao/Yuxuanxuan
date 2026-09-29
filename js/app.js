@@ -157,14 +157,14 @@ function markupFrom(node) {
 
 function spriteFields(sprite) {
   const size = Number(sprite.size);
-  const shown = Number.isFinite(size) && size > 0 ? size : 100;
+  const shown = Number.isFinite(size) && size > 0 ? size : 50;
   const record = {
     src: sprite.src,
     x: Number(sprite.x) || 0,
     y: Number(sprite.y) || 0,
     rotate: Number(sprite.rotate) || 0,
   };
-  if (shown !== 100) record.size = Math.round(Math.min(220, Math.max(20, shown)) * 10) / 10;
+  if (shown !== 50) record.size = Math.round(Math.min(100, Math.max(20, shown)) * 10) / 10;
   return record;
 }
 
@@ -214,6 +214,12 @@ function quantizeEdge(edge) {
   return Math.ceil(clamped / step) * step;
 }
 
+function quantizeSprite(edge) {
+  const step = 80;
+  const clamped = Math.min(640, Math.max(80, Math.round(edge)));
+  return Math.ceil(clamped / step) * step;
+}
+
 function displayPath(src, edge, quality) {
   const params = new URLSearchParams({
     src,
@@ -233,6 +239,30 @@ function galleryDisplay(src, cssWidth) {
   const css = Math.max(1, cssWidth || window.innerWidth * 0.5);
   const softer = Math.max(css, css * dpr * 0.72);
   return displayPath(src, softer, 74);
+}
+
+function spriteEdge(scale) {
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const css = Math.min(16 * rem, window.innerWidth * 0.34) * Math.max(0.2, scale || 0.5);
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  return Math.max(css, css * dpr * 0.72);
+}
+
+function spriteDisplay(src, scale) {
+  const params = new URLSearchParams({
+    src,
+    w: String(quantizeSprite(spriteEdge(scale))),
+    q: "74",
+  });
+  return `/api/display?${params}`;
+}
+
+function spriteStill(src, scale) {
+  const params = new URLSearchParams({
+    src,
+    w: String(quantizeSprite(spriteEdge(scale))),
+  });
+  return `/api/still?${params}`;
 }
 
 function imagePayload(item) {
@@ -673,7 +703,7 @@ function renderSprites(job) {
   layer.replaceChildren(
     ...(job.sprites || []).map((sprite, index) => {
       const size = Number(sprite.size);
-      const scale = Number.isFinite(size) && size > 0 ? size / 100 : 1;
+      const scale = (Number.isFinite(size) && size > 0 ? size : 50) / 100;
       const image = h("img", {
         alt: "",
         style: `transform:rotate(${Number(sprite.rotate) || 0}deg)`,
@@ -686,7 +716,7 @@ function renderSprites(job) {
         },
         image
       );
-      bindGif(image, sprite.src);
+      bindGif(image, sprite.src, scale);
       bindMenu(figure, sprite.src, {
         replace: () => replaceList(job, "sprites", index),
         turn: () => {
@@ -701,13 +731,16 @@ function renderSprites(job) {
   );
 }
 
-function bindGif(image, src) {
+function bindGif(image, src, scale) {
   const motion = /\.gif(?:$|[?#])/i.test(src);
   if (!motion) {
-    image.src = src;
+    image.src = spriteDisplay(src, scale);
+    image.addEventListener("error", () => {
+      if (image.getAttribute("src") !== src) image.src = src;
+    });
     return;
   }
-  const still = `/api/still?src=${encodeURIComponent(src)}`;
+  const still = spriteStill(src, scale);
   image.src = still;
   image.addEventListener("error", () => {
     if (image.getAttribute("src") !== src) image.src = src;

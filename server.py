@@ -20,9 +20,9 @@ DATA = ROOT / "data"
 UPLOADS = ROOT / "images" / "uploads"
 DISPLAYS = UPLOADS / ".display"
 DISPLAY_EDGE = 1920
-EDGE_MIN = 480
+EDGE_MIN = 80
 EDGE_MAX = 8192
-EDGE_STEP = 160
+EDGE_STEP = 80
 SITE_PATH = DATA / "site.json"
 ADMIN_PATH = DATA / "admin.json"
 SECRET_PATH = DATA / "secret.key"
@@ -266,8 +266,8 @@ def clean_scale(value):
         return None
     if number != number:
         return None
-    size = round(min(220.0, max(20.0, number)), 1)
-    if size == 100:
+    size = round(min(100.0, max(20.0, number)), 1)
+    if size == 50:
         return None
     return size
 
@@ -595,29 +595,33 @@ def soften_image(source, edge, quality):
         return target
 
 
-def still_frame(source):
+def still_frame(source, edge):
     try:
         from PIL import Image
     except ImportError:
         return source
     stamp = source.stat().st_mtime_ns
-    target = DISPLAYS / f"{source.stem}-{stamp}-still.png"
+    target = DISPLAYS / f"{source.stem}-{stamp}-still-{edge}.png"
     if target.is_file():
         return target
     DISPLAYS.mkdir(parents=True, exist_ok=True)
     with Image.open(source) as image:
         if not (getattr(image, "is_animated", False) and getattr(image, "n_frames", 1) > 1):
-            return source
+            return soften_image(source, edge, 74)
         image.seek(0)
         frame = image.convert("RGBA")
+        frame.thumbnail((edge, edge), Image.Resampling.LANCZOS)
         temporary = target.with_suffix(target.suffix + ".part")
         frame.save(temporary, format="PNG", optimize=True)
         temporary.replace(target)
-    prefix = f"{source.stem}-{stamp}-still"
-    for stale in DISPLAYS.glob(f"{source.stem}-*-still.png"):
-        if stale.stem != prefix:
+    prefix = f"{source.stem}-{stamp}-still-"
+    for stale in DISPLAYS.glob(f"{source.stem}-*-still-*.png"):
+        if not stale.name.startswith(prefix):
             stale.unlink(missing_ok=True)
     return target
+
+
+def sniff_image(blob):
     if blob.startswith(b"\xff\xd8\xff"):
         return ".jpg"
     if blob.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -959,7 +963,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         source = ROOT / cleaned
         try:
-            path = still_frame(source)
+            path = still_frame(source, requested_edge((params.get("w") or [""])[0]))
         except Exception:
             path = source
         blob = path.read_bytes()

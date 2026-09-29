@@ -259,7 +259,7 @@ function spriteList(job) {
       "div",
       { class: "extra-list" },
       ...job.sprites.map((sprite, index) => {
-        const size = Number.isFinite(Number(sprite.size)) && Number(sprite.size) > 0 ? Number(sprite.size) : 100;
+        const size = Number.isFinite(Number(sprite.size)) && Number(sprite.size) > 0 ? Number(sprite.size) : 50;
         const label = h("label", {}, `大小 ${Math.round(size)}%`);
         return h(
           "div",
@@ -269,7 +269,7 @@ function spriteList(job) {
           h("input", {
             type: "range",
             min: "20",
-            max: "220",
+            max: "100",
             step: "5",
             value: String(Math.round(size)),
             oninput: (event) => {
@@ -324,7 +324,7 @@ async function uploadMany(job, key, fileList, input) {
       const path = await sendFile(batch[index]);
       if (key === "sprites") {
         const count = job.sprites.length;
-        job.sprites.push({ src: path, x: 8 + (count % 6) * 8, y: 18 + Math.floor(count / 6) * 12, rotate: 0, size: 100 });
+        job.sprites.push({ src: path, x: 8 + (count % 6) * 8, y: 18 + Math.floor(count / 6) * 12, rotate: 0, size: 50 });
       } else {
         job.images.push(path);
       }
@@ -437,8 +437,8 @@ function payload() {
             y: Number(sprite.y) || 0,
             rotate: Number(sprite.rotate) || 0,
           };
-          if (Number.isFinite(size) && size > 0 && size !== 100) {
-            record.size = Math.round(Math.min(220, Math.max(20, size)) * 10) / 10;
+          if (Number.isFinite(size) && size > 0 && size !== 50) {
+            record.size = Math.round(Math.min(100, Math.max(20, size)) * 10) / 10;
           }
           return record;
         }),

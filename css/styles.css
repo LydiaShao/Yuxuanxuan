@@ -654,7 +654,7 @@ body.is-admin .wrap-pic.is-right .resize {
   pointer-events: auto;
   cursor: grab;
   touch-action: none;
-  --sprite-size: 1;
+  --sprite-size: 0.5;
 }
 
 .sprite.is-dragging {
