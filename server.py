@@ -64,7 +64,7 @@ JOB_COLOR_LABELS = {
     "text": "文字",
     "muted": "次要文字",
 }
-PANEL_BACKGROUND = "#f4efe6"
+PICTURE_LOOK_KEYS = ("rotate", "flipX", "flipY", "round", "dissolve", "shadow", "ghost", "ghostColor", "shadowColor")
 PANEL_TEXT = "#2a2420"
 MAX_IMAGES = 40
 MAX_BLOCKS = 16
@@ -219,24 +219,62 @@ def clean_flag(value):
     return text in ("1", "true", "yes", "on")
 
 
-def stamp_picture_look(image, item):
-    angle = clean_angle(item.get("rotate"))
+def picture_has_look(item):
+    return any(key in item for key in PICTURE_LOOK_KEYS)
+
+
+def picture_look_table(site):
+    table = {}
+    jobs = site.get("jobs") if isinstance(site, dict) and isinstance(site.get("jobs"), list) else []
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+        job_id = str(job.get("id") or "").strip().lower()
+        name = str(job.get("name") or "").strip().lower()
+        body = job.get("body") if isinstance(job.get("body"), list) else []
+        for item in body:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("type") or "").strip().lower() != "image":
+                continue
+            src = str(item.get("src") or "").strip()
+            if not src or not picture_has_look(item):
+                continue
+            look = {key: item[key] for key in PICTURE_LOOK_KEYS if key in item}
+            table[(job_id, src)] = look
+            if name:
+                table[(name, src)] = look
+            table[src] = look
+    return table
+
+
+def previous_picture_look(looks, job, src):
+    if not looks:
+        return None
+    job_id = str((job or {}).get("id") or "").strip().lower()
+    name = str((job or {}).get("name") or "").strip().lower()
+    return looks.get((job_id, src)) or looks.get((name, src)) or looks.get(src)
+
+
+def stamp_picture_look(image, item, previous=None):
+    source = item if picture_has_look(item) else (previous or {})
+    angle = clean_angle(source.get("rotate"))
     if angle:
         image["rotate"] = angle
-    if clean_flag(item.get("flipX")):
+    if clean_flag(source.get("flipX")):
         image["flipX"] = True
-    if clean_flag(item.get("flipY")):
+    if clean_flag(source.get("flipY")):
         image["flipY"] = True
     for key, hi in (("round", 50.0), ("dissolve", 48.0), ("shadow", 40.0), ("ghost", 40.0)):
-        amount = clean_spot(item.get(key), 0.0, hi)
+        amount = clean_spot(source.get(key), 0.0, hi)
         if amount:
             image[key] = amount
     if image.get("ghost"):
-        ghost_color = str(item.get("ghostColor") or "").strip()
+        ghost_color = str(source.get("ghostColor") or "").strip()
         if HEX.match(ghost_color):
             image["ghostColor"] = ghost_color.lower()
     if image.get("shadow"):
-        shadow_color = str(item.get("shadowColor") or "").strip()
+        shadow_color = str(source.get("shadowColor") or "").strip()
         if HEX.match(shadow_color):
             image["shadowColor"] = shadow_color.lower()
     return image
@@ -443,7 +481,7 @@ def text_item(text, markup, background, color, strict):
     }
 
 
-def parse_body(raw, strict):
+def parse_body(raw, strict, looks=None, job=None):
     if strict and len(raw) > MAX_BLOCKS + MAX_IMAGES:
         raise ValueError("正文太长了")
     body = []
@@ -474,7 +512,7 @@ def parse_body(raw, strict):
                 image["x"] = x
             if y is not None:
                 image["y"] = y
-            stamp_picture_look(image, item)
+            stamp_picture_look(image, item, previous_picture_look(looks, job, src))
             body.append(image)
             continue
         if kind not in ("text", ""):
@@ -533,7 +571,7 @@ def body_from_legacy(job, strict):
     return body, blocks, images
 
 
-def clean_job(job, strict=True):
+def clean_job(job, strict=True, looks=None):
     if not isinstance(job, dict):
         raise ValueError("职业格式不对")
     job_id = str(job.get("id", "")).strip().lower()
@@ -544,7 +582,7 @@ def clean_job(job, strict=True):
         raise ValueError("职业名称需要 1 到 40 个字符")
     colors = clean_job_colors(job, strict)
     if isinstance(job.get("body"), list):
-        body, blocks, images = parse_body(job.get("body"), strict)
+        body, blocks, images = parse_body(job.get("body"), strict, looks, job)
     else:
         body, blocks, images = body_from_legacy(job, strict)
     if not strict:
@@ -602,10 +640,11 @@ def validate_site(payload):
         raise ValueError("缺少职业列表")
     if len(jobs_in) > MAX_JOBS:
         raise ValueError(f"最多 {MAX_JOBS} 个职业")
+    looks = picture_look_table(load_json(SITE_PATH, {"jobs": []}))
     jobs = []
     seen = set()
     for job in jobs_in:
-        cleaned = clean_job(job)
+        cleaned = clean_job(job, looks=looks)
         if cleaned["id"] in seen:
             raise ValueError(f"职业 id 重复：{cleaned['id']}")
         seen.add(cleaned["id"])

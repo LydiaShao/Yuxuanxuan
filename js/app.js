@@ -240,6 +240,8 @@ function keepSprites(current, incoming) {
   return sprites;
 }
 
+const PICTURE_LOOK_KEYS = ["rotate", "flipX", "flipY", "round", "dissolve", "shadow", "ghost", "ghostColor", "shadowColor"];
+
 function keepBody(current, incoming) {
   const prev = Array.isArray(current) ? current.slice() : [];
   const used = new Set();
@@ -260,8 +262,15 @@ function keepBody(current, incoming) {
     }
     if (hit < 0) return fresh;
     used.add(hit);
-    Object.assign(prev[hit], fresh);
-    return prev[hit];
+    const kept = prev[hit];
+    const look = {};
+    if (fresh.type === "image") {
+      PICTURE_LOOK_KEYS.forEach((key) => {
+        if (!(key in fresh) && key in kept) look[key] = kept[key];
+      });
+    }
+    Object.assign(kept, fresh, look);
+    return kept;
   });
 }
 
@@ -347,23 +356,26 @@ function spriteStill(src) {
   return `/api/still?${params}`;
 }
 
+function stampLookPayload(image, item) {
+  image.rotate = Math.round(((((Number(item.rotate) || 0) % 360) + 360) % 360) * 10) / 10;
+  image.flipX = !!item.flipX;
+  image.flipY = !!item.flipY;
+  [["round", 50], ["dissolve", 48], ["shadow", 40], ["ghost", 40]].forEach(([key, hi]) => {
+    const amount = Number(item[key]);
+    image[key] = Number.isFinite(amount) ? Math.round(Math.min(hi, Math.max(0, amount)) * 10) / 10 : 0;
+  });
+  image.ghostColor = cssHex(item.ghostColor, "#1a1018");
+  image.shadowColor = cssHex(item.shadowColor, "#14100e");
+  return image;
+}
+
 function imagePayload(item) {
   const image = { type: "image", src: item.src };
   const width = Number(item.w);
   image.w = Number.isFinite(width) && width > 0 ? Math.round(Math.min(100, Math.max(8, width)) * 100) / 100 : 46;
   image.x = Math.round(Math.min(100, Math.max(0, Number(item.x) || 0)) * 100) / 100;
   image.y = Math.round(Math.min(800, Math.max(0, Number(item.y) || 0)) * 100) / 100;
-  const rotate = ((Number(item.rotate) || 0) % 360 + 360) % 360;
-  if (rotate) image.rotate = Math.round(rotate * 10) / 10;
-  if (item.flipX) image.flipX = true;
-  if (item.flipY) image.flipY = true;
-  [["round", 50], ["dissolve", 48], ["shadow", 40], ["ghost", 40]].forEach(([key, hi]) => {
-    const amount = Number(item[key]);
-    if (Number.isFinite(amount) && amount > 0) image[key] = Math.round(Math.min(hi, amount) * 10) / 10;
-  });
-  if (image.ghost && cssHex(item.ghostColor, "")) image.ghostColor = cssHex(item.ghostColor, "");
-  if (image.shadow && cssHex(item.shadowColor, "")) image.shadowColor = cssHex(item.shadowColor, "");
-  return image;
+  return stampLookPayload(image, item);
 }
 
 function textPayload(item) {
