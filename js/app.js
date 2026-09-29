@@ -294,20 +294,50 @@ function spriteStill(src) {
 
 function imagePayload(item) {
   const image = { type: "image", src: item.src };
-  const width = Number(item.w);
-  if (Number.isFinite(width) && width > 0) image.w = Math.round(Math.min(100, Math.max(8, width)) * 100) / 100;
+  const width = flowWidth(item);
+  if (width != null) image.w = width;
   if (item.side === "left" || item.side === "right") image.side = item.side;
   return image;
 }
 
 function textPayload(item) {
-  return {
+  const record = {
     type: "text",
     text: item.text || "",
     markup: item.markup || "",
     background: cssHex(item.background, "#f4efe6"),
     color: cssHex(item.color, "#2a2420"),
   };
+  const width = flowWidth(item);
+  if (width != null) {
+    record.w = width;
+    if (item.side === "left" || item.side === "right") record.side = item.side;
+  }
+  return record;
+}
+
+function flowWidth(item) {
+  const width = Number(item.w);
+  if (!Number.isFinite(width) || width <= 0) return null;
+  const clamped = Math.round(Math.min(100, Math.max(8, width)) * 100) / 100;
+  if (clamped >= 100) return null;
+  return clamped;
+}
+
+function applyFlowSize(node, item) {
+  const width = flowWidth(item);
+  if (item.type === "image") {
+    const side = item.side === "right" ? "right" : "left";
+    node.classList.toggle("is-left", side === "left");
+    node.classList.toggle("is-right", side === "right");
+    node.style.width = width != null ? `${width}%` : "";
+    return;
+  }
+  const side = item.side === "right" ? "right" : "left";
+  node.classList.toggle("is-sized", width != null);
+  node.classList.toggle("is-left", width != null && side === "left");
+  node.classList.toggle("is-right", width != null && side === "right");
+  node.style.width = width != null ? `${width}%` : "";
 }
 
 function bindMenu(node, original, extra) {
@@ -418,10 +448,14 @@ function renderStory(job) {
       text
     );
     section._item = item;
+    applyFlowSize(section, item);
     if (state.admin) {
       const grab = h("span", { class: "drag", "aria-hidden": "true" });
+      const handle = h("span", { class: "resize", "aria-hidden": "true" });
       section.prepend(grab);
+      section.append(handle);
       bindStoryDrag(section, job, item, "drag");
+      bindWrapResize(handle, section, job, item);
       bindMenu(section, "", {
         colors: item,
         remove: () => removeBody(job, item),
@@ -494,7 +528,7 @@ function bindStoryDrag(node, job, item, grab) {
     node.classList.remove("is-dragging");
     node.style.left = "";
     node.style.top = "";
-    node.style.width = item.w ? `${item.w}%` : "";
+    node.style.width = flowWidth(item) != null ? `${flowWidth(item)}%` : "";
   };
   node.addEventListener("pointerup", (event) => {
     if (!drag) return;
@@ -506,10 +540,9 @@ function bindStoryDrag(node, job, item, grab) {
     const flow = node.parentElement;
     if (!flow) return;
     const rect = flow.getBoundingClientRect();
-    if (item.type === "image") {
+    if (item.type === "image" || item.type === "text") {
       item.side = x < rect.left + rect.width / 2 ? "left" : "right";
-      node.classList.toggle("is-left", item.side === "left");
-      node.classList.toggle("is-right", item.side === "right");
+      applyFlowSize(node, item);
     }
     const kids = [...flow.children].filter((child) => child !== node);
     let at = kids.length;
@@ -552,14 +585,24 @@ function bindWrapResize(handle, figure, job, item) {
     const percent = Math.min(100, Math.max(8, (px / Math.max(resizing.flow, 1)) * 100));
     resizing.percent = Math.round(percent * 100) / 100;
     figure.style.width = `${resizing.percent}%`;
+    if (item.type === "text" && resizing.percent < 100) {
+      figure.classList.add("is-sized", item.side === "right" ? "is-right" : "is-left");
+      figure.classList.toggle("is-left", item.side !== "right");
+      figure.classList.toggle("is-right", item.side === "right");
+    }
   });
   const finish = () => {
     if (!resizing) return;
     const percent = resizing.percent;
     resizing = null;
     if (percent == null) return;
-    item.w = percent;
-    refreshPictures();
+    if (percent >= 99.5) delete item.w;
+    else {
+      item.w = percent;
+      if (item.type === "text" && item.side !== "left" && item.side !== "right") item.side = "left";
+    }
+    applyFlowSize(figure, item);
+    if (item.type === "image") refreshPictures();
     persist().catch((error) => window.alert(error.message));
   };
   handle.addEventListener("pointerup", finish);

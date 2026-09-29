@@ -400,13 +400,19 @@ function payload() {
     jobs: state.jobs.map((job) => {
       const body = ensureBody(job).map((item) => {
         if (item.type !== "image") {
-          return {
+          const record = {
             type: "text",
             text: item.text || "",
             markup: item.markup || "",
             background: cssHex(item.background, "#f4efe6"),
             color: cssHex(item.color, "#2a2420"),
           };
+          const width = Number(item.w);
+          if (Number.isFinite(width) && width > 0 && width < 100) {
+            record.w = Math.round(Math.min(100, Math.max(8, width)) * 100) / 100;
+            if (item.side === "left" || item.side === "right") record.side = item.side;
+          }
+          return record;
         }
         const image = { type: "image", src: item.src };
         const width = Number(item.w);

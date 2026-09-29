@@ -376,6 +376,25 @@ def text_item(text, markup, background, color, strict):
         "background": clean_hex(background, "文字板块底色", PANEL_BACKGROUND if not strict else None),
         "color": clean_hex(color, "文字板块文字", PANEL_TEXT if not strict else None),
     }
+    cleaned = clean_markup(markup if markup else escape(text or "", quote=False).replace("\n", "<br>"))
+    plain = plain_from_markup(cleaned) or str(text or "").strip()[:6000]
+    if not plain and not cleaned:
+        if strict:
+            return {
+                "type": "text",
+                "text": "",
+                "markup": "",
+                "background": clean_hex(background, "文字板块底色", None) if strict else PANEL_BACKGROUND,
+                "color": clean_hex(color, "文字板块文字", None) if strict else PANEL_TEXT,
+            }
+        return None
+    return {
+        "type": "text",
+        "text": plain,
+        "markup": cleaned or escape(plain, quote=False).replace("\n", "<br>"),
+        "background": clean_hex(background, "文字板块底色", PANEL_BACKGROUND if not strict else None),
+        "color": clean_hex(color, "文字板块文字", PANEL_TEXT if not strict else None),
+    }
 
 
 def parse_body(raw, strict):
@@ -419,6 +438,12 @@ def parse_body(raw, strict):
             continue
         block = text_item(item.get("text", ""), item.get("markup", ""), item.get("background"), item.get("color"), strict)
         if block:
+            width = clean_ratio(item.get("w"))
+            if width is not None and width < 100:
+                block["w"] = width
+                side = str(item.get("side") or "").strip().lower()
+                if side in ("left", "right"):
+                    block["side"] = side
             body.append(block)
     blocks = [
         {"text": item["text"], "background": item["background"], "color": item["color"]}

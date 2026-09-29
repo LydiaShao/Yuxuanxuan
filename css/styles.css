@@ -494,11 +494,24 @@ h1 {
 
 .story-text .panel {
   display: flow-root;
-  width: auto;
-  max-width: none;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   margin: 0 0 1rem;
   padding: 0.7rem 0.9rem;
   overflow: visible;
+}
+
+.story-text .panel.is-sized.is-left {
+  float: left;
+  margin: 0 var(--gap) 1rem 0;
+  max-width: calc(100% - var(--gap));
+}
+
+.story-text .panel.is-sized.is-right {
+  float: right;
+  margin: 0 0 1rem var(--gap);
+  max-width: calc(100% - var(--gap));
 }
 
 .story-text .panel-text {
@@ -506,6 +519,7 @@ h1 {
   padding: 0;
   line-height: 1.85;
   background: transparent;
+  overflow-wrap: anywhere;
 }
 
 body.is-admin .story-text .panel {
@@ -596,7 +610,8 @@ body.is-admin .resize {
   box-shadow: 0 0.08rem 0.2rem rgba(20, 16, 14, 0.35);
 }
 
-body.is-admin .wrap-pic.is-right .resize {
+body.is-admin .wrap-pic.is-right .resize,
+body.is-admin .panel.is-right .resize {
   right: auto;
   left: -0.15rem;
   cursor: nesw-resize;
