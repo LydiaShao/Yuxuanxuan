@@ -11,6 +11,7 @@
   --display: "Fraunces", "Noto Serif SC", Palatino, serif;
   --body: "Literata", "Noto Serif SC", Palatino, serif;
   --ui: "Figtree", "Noto Sans SC", sans-serif;
+  --page: 100vw;
 }
 
 *,
@@ -429,13 +430,23 @@ h1 {
 }
 
 .story {
-  width: 100%;
+  --edge: calc(4vw + 1rem);
+  --gap: 1.75rem;
+  width: calc(var(--page) - 2 * var(--edge));
   margin-top: 1.6rem;
+  margin-left: calc(var(--edge) - 4vw);
+}
+
+.side-right .story {
+  margin-left: calc(var(--edge) - (var(--page) - 4vw - min(1120px, var(--page) - 8vw)));
 }
 
 .story-text {
   display: flow-root;
+  width: auto;
   min-height: 2rem;
+  margin-left: calc(var(--gap) / -2);
+  margin-right: calc(var(--gap) / -2);
   font-family: var(--body);
   font-size: 1.05rem;
   line-height: 1.8;
@@ -458,12 +469,29 @@ h1 {
   -webkit-box-decoration-break: clone;
 }
 
+body.is-admin .panel-text.is-empty {
+  display: inline-block;
+  min-width: min(18rem, 70%);
+  min-height: 3.4rem;
+  padding: 0.45rem 0.7rem;
+  vertical-align: top;
+  outline: 1px dashed color-mix(in srgb, currentColor 55%, transparent);
+  outline-offset: 3px;
+  cursor: text;
+  scroll-margin: 5rem;
+}
+
+body.is-admin .panel-text.is-empty::before {
+  content: "Write here";
+  opacity: 0.55;
+}
+
 .wrap-pic {
   position: relative;
   z-index: 1;
-  width: calc(50% - 0.5rem);
+  width: calc(50% - var(--gap));
   max-width: 100%;
-  margin: 0.15rem 0.35rem 0.4rem 0;
+  margin: 0.45rem calc(var(--gap) / 2) 1rem;
   shape-outside: margin-box;
 }
 
@@ -473,7 +501,6 @@ h1 {
 
 .wrap-pic.is-right {
   float: right;
-  margin: 0.15rem 0 0.4rem 0.35rem;
 }
 
 .wrap-pic img {
@@ -648,6 +675,13 @@ textarea:focus-visible {
     width: calc(100% - 1.4rem);
     margin-left: 0.7rem;
     margin-right: 0.7rem;
+  }
+
+  .story,
+  .side-right .story {
+    --edge: 1.25rem;
+    width: calc(var(--page) - 2 * var(--edge));
+    margin-left: calc(var(--edge) - 0.7rem);
   }
 }
 

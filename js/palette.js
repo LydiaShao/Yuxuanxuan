@@ -46,6 +46,12 @@
 })(window);
 
 (function () {
+  const syncPage = () => {
+    document.documentElement.style.setProperty("--page", `${document.documentElement.clientWidth}px`);
+  };
+  syncPage();
+  window.addEventListener("resize", syncPage);
+  if (window.ResizeObserver) new ResizeObserver(syncPage).observe(document.documentElement);
   const bar = document.querySelector(".topbar");
   if (!bar) return;
   const sync = () => bar.classList.toggle("is-top", window.scrollY < 2);

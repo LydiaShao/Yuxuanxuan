@@ -302,11 +302,13 @@ function renderStory(job) {
     }
     if (!state.admin && !(item.text || "").trim()) return;
     const text = h("div", {
-      class: "panel-text",
+      class: `panel-text${state.admin && !(item.text || "").trim() ? " is-empty" : ""}`,
       contenteditable: state.admin ? "true" : null,
       style: `background:${cssHex(item.background, "#f4efe6")};color:${cssHex(item.color, "#2a2420")}`,
+      oninput: (event) => event.currentTarget.classList.toggle("is-empty", !event.currentTarget.innerText.trim()),
       onblur: (event) => commitBlock(job, item, event.target),
     });
+    if (item._fresh) text.dataset.fresh = "1";
     text.innerHTML = item.markup || escapeHtml(item.text || "").replace(/\n/g, "<br>");
     const section = h("section", { class: "panel" }, text);
     section._item = item;
@@ -436,14 +438,28 @@ function bindWrapResize(handle, figure, job, item) {
   handle.addEventListener("pointercancel", finish);
 }
 
-function addText(job) {
+function addText(job, clientY) {
   if (!state.admin) return;
   ensureBody(job);
-  job.body.push({ type: "text", text: "", markup: "", background: "#f4efe6", color: "#2a2420" });
+  const item = { type: "text", text: "", markup: "", background: "#f4efe6", color: "#2a2420", _fresh: true };
+  job.body.splice(textInsertAt(clientY), 0, item);
   paint();
-  const fields = document.querySelectorAll(".panel-text[contenteditable='true']");
-  const field = fields[fields.length - 1];
-  if (field) field.focus();
+  const field = document.querySelector(".panel-text[data-fresh]");
+  if (!field) return;
+  delete item._fresh;
+  field.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+  field.focus();
+}
+
+function textInsertAt(clientY) {
+  const flow = document.querySelector(".story-text");
+  if (!flow || clientY == null) return flow ? flow.children.length : 0;
+  const kids = [...flow.children];
+  for (let index = 0; index < kids.length; index += 1) {
+    const rect = kids[index].getBoundingClientRect();
+    if (clientY < rect.top + rect.height / 2) return index;
+  }
+  return kids.length;
 }
 
 async function commitBlock(job, item, node) {
@@ -696,7 +712,7 @@ document.addEventListener("contextmenu", (event) => {
   if (!job) return;
   event.preventDefault();
   showMenu(event.clientX, event.clientY, [
-    { label: "Add text", action: () => addText(job) },
+    { label: "Add text", action: () => addText(job, event.clientY) },
     { label: "Add picture", action: () => addPictures(job) },
   ]);
 });
