@@ -295,53 +295,16 @@ async function writeSite() {
   }
 }
 
-function quantizeEdge(edge) {
-  const step = 160;
-  const clamped = Math.min(8192, Math.max(480, Math.round(edge)));
-  return Math.ceil(clamped / step) * step;
-}
-
-function quantizeSprite(edge) {
-  const step = 80;
-  const clamped = Math.min(1280, Math.max(240, Math.round(edge)));
-  return Math.ceil(clamped / step) * step;
-}
-
-function displayPath(src, edge, quality) {
-  const params = new URLSearchParams({
-    src,
-    w: String(quantizeEdge(edge)),
-    q: String(quality),
-  });
-  return `/api/display?${params}`;
-}
-
 function bannerDisplay(src) {
-  const pixels = window.innerWidth * (window.devicePixelRatio || 1);
-  return displayPath(src, pixels, 90);
+  return src;
 }
 
-function galleryDisplay(src, cssWidth) {
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-  const css = Math.max(1, cssWidth || window.innerWidth * 0.5);
-  const softer = Math.max(css, css * dpr * 0.72);
-  return displayPath(src, softer, 74);
+function galleryDisplay(src) {
+  return src;
 }
 
-function spriteEdge(scale) {
-  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-  const css = Math.min(16 * rem, window.innerWidth * 0.34) * Math.max(0.2, scale || 0.5);
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-  return css * dpr;
-}
-
-function spriteDisplay(src, scale) {
-  const params = new URLSearchParams({
-    src,
-    w: String(quantizeSprite(spriteEdge(scale))),
-    q: "86",
-  });
-  return `/api/display?${params}`;
+function spriteDisplay(src) {
+  return src;
 }
 
 function spriteStill(src) {
@@ -1159,10 +1122,7 @@ function refreshPictures() {
     if (image.dataset.fellback) return;
     const src = image.dataset.original;
     if (!src) return;
-    const frame = image.closest("figure");
-    const css = image.dataset.kind === "banner" ? window.innerWidth : frame && frame.clientWidth;
-    const next = image.dataset.kind === "banner" ? bannerDisplay(src) : galleryDisplay(src, css);
-    if (image.getAttribute("src") !== next) image.src = next;
+    if (image.getAttribute("src") !== src) image.src = src;
   });
 }
 
