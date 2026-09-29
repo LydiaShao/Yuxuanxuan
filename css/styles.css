@@ -91,7 +91,8 @@ main#content {
   position: sticky;
   top: 0;
   z-index: 4;
-  background: var(--background);
+  background: color-mix(in srgb, var(--background) 72%, transparent);
+  backdrop-filter: blur(14px);
   border-bottom: 2px solid var(--accent);
 }
 
@@ -99,7 +100,13 @@ main#content {
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  width: calc(100% - 2.4rem);
+  margin-inline: auto;
   min-height: 4.4rem;
+}
+
+.wrap.bar {
+  width: min(1080px, calc(100% - 2.4rem));
 }
 
 .brand {
@@ -114,26 +121,39 @@ main#content {
 .job-nav {
   flex: 1;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.35rem 1.15rem;
-  overflow-x: auto;
-  scrollbar-width: thin;
+  align-items: center;
+  row-gap: 0.15rem;
+  min-width: 0;
 }
 
 .job-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
   flex: none;
   font-family: var(--ui);
   font-size: 0.98rem;
   letter-spacing: 0.01em;
   text-decoration: none;
   color: var(--muted);
-  padding: 0.28rem 0.7rem;
-  border-radius: 0.55rem;
+  padding: 0.2rem 0 0.2rem 0.7rem;
+  border-radius: 0;
+  background: none;
+}
+
+.job-nav a:not(:last-child)::after {
+  content: "";
+  width: 1px;
+  align-self: stretch;
+  background: color-mix(in srgb, var(--text) 34%, transparent);
 }
 
 .job-nav a[aria-current="page"] {
   color: var(--text);
-  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  background: none;
+  font-weight: 500;
 }
 
 .job {
@@ -184,19 +204,31 @@ main#content {
   padding-top: 0;
 }
 
+.identity {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.2rem;
+}
+
+.identity-copy {
+  min-width: 0;
+  flex: 1;
+  padding-bottom: 0.2rem;
+}
+
 .portrait {
-  width: 7.4rem;
-  margin: 0 0 0.8rem;
+  width: min(14.8rem, 46vw);
+  flex: none;
+  margin: 0;
 }
 
 .feed.has-cover .portrait {
   position: relative;
   z-index: 1;
-  margin-top: -2.6rem;
+  margin-top: calc(min(14.8rem, 46vw) * -0.35);
 }
 
-.portrait img,
-.gallery img {
+.portrait img {
   width: 100%;
   height: auto;
   display: block;
@@ -249,9 +281,23 @@ h1 {
 
 .gallery {
   display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  margin-top: 1.2rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.9rem 1rem;
+  margin-top: 1.5rem;
+}
+
+.gallery figure {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.gallery img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
 }
 
 .empty,
@@ -305,7 +351,12 @@ textarea:focus-visible {
 
   .bar {
     flex-wrap: wrap;
+    width: calc(100% - 1.4rem);
     padding: 0.75rem 0;
+  }
+
+  .wrap.bar {
+    width: min(1080px, calc(100% - 1.4rem));
   }
 
   .job-nav {
@@ -315,14 +366,6 @@ textarea:focus-visible {
 
   .feed {
     width: min(760px, calc(100% - 1.2rem));
-  }
-
-  .portrait {
-    width: 5.6rem;
-  }
-
-  .feed.has-cover .portrait {
-    margin-top: -1.8rem;
   }
 }
 

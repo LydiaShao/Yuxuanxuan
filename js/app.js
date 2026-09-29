@@ -50,6 +50,12 @@ function renderJob(job) {
   const extras = Array.isArray(job.images) ? job.images.filter(Boolean) : [];
   const banner = plate("banner", job.banner, `${job.name} illustration`);
   const portrait = plate("portrait", job.portrait, `${job.name} portrait`);
+  const copy = h(
+    "div",
+    { class: "identity-copy" },
+    h("h1", {}, job.name),
+    job.tagline ? h("p", { class: "tagline" }, job.tagline) : null
+  );
   const article = h(
     "article",
     { class: "job" },
@@ -57,18 +63,16 @@ function renderJob(job) {
     h(
       "div",
       { class: banner && portrait ? "feed has-cover" : "feed" },
-      portrait,
-      h("h1", {}, job.name),
-      job.tagline ? h("p", { class: "tagline" }, job.tagline) : null,
-      paragraphs.length ? h("div", { class: "prose" }, paragraphs.map((paragraph) => h("p", {}, paragraph))) : null
-    ),
-    extras.length
-      ? h(
-          "div",
-          { class: "gallery" },
-          extras.map((src, index) => plate("plate", src, `${job.name} picture ${index + 1}`))
-        )
-      : null
+      portrait ? h("div", { class: "identity" }, portrait, copy) : copy,
+      paragraphs.length ? h("div", { class: "prose" }, paragraphs.map((paragraph) => h("p", {}, paragraph))) : null,
+      extras.length
+        ? h(
+            "div",
+            { class: "gallery" },
+            extras.map((src, index) => plate("plate", src, `${job.name} picture ${index + 1}`))
+          )
+        : null
+    )
   );
   YxPalette.applyJobScheme(article, job);
   return article;
