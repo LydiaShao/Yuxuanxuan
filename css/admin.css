@@ -101,6 +101,18 @@ button,
   cursor: pointer;
 }
 
+.file-button {
+  position: relative;
+  display: inline-block;
+}
+
+.file-button input {
+  position: absolute;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+}
+
 button.primary {
   background: var(--accent);
   color: var(--on-accent, #1c140e);
@@ -201,6 +213,63 @@ button:disabled {
   max-height: 14rem;
   object-fit: contain;
   display: block;
+}
+
+.sheet {
+  margin-top: 1.2rem;
+  padding: 1rem 1.1rem 1.2rem;
+  background: #f7f1e8;
+  color: #2a2420;
+  border-radius: 0.4rem;
+}
+
+.sheet h3,
+.sheet .hint,
+.sheet button,
+.sheet label {
+  color: #2a2420;
+}
+
+.sheet-tools,
+.sheet .row-actions {
+  margin: 0.4rem 0 0.8rem;
+}
+
+.sheet-text {
+  min-height: 6.5rem;
+  padding: 0.85rem 0.9rem;
+  background: #fffdf8;
+  border: 1px solid #e4d8c8;
+  border-radius: 0.2rem;
+  font-family: var(--body);
+  font-size: 1.05rem;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.sheet-text:focus {
+  outline: 2px solid #705b10;
+  outline-offset: 1px;
+}
+
+.sheet-block,
+.sheet-image {
+  margin-bottom: 0.9rem;
+}
+
+.sheet-image figure {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 0.4rem;
+  background: #fffdf8;
+  padding: 0.35rem;
+}
+
+.sheet-image img {
+  display: block;
+  width: auto;
+  max-width: min(100%, 36rem);
+  max-height: 16rem;
 }
 
 .hint {

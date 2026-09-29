@@ -100,29 +100,85 @@ async function uploadFile(file) {
   return data.path;
 }
 
+function escapeHtml(value) {
+  return String(value).replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[char]));
+}
+
+function ensureBody(job) {
+  if (Array.isArray(job.body)) return job.body;
+  const body = [];
+  for (const block of job.blocks || []) {
+    body.push({
+      type: "text",
+      text: block.text || "",
+      markup: escapeHtml(block.text || "").replace(/\n/g, "<br>"),
+      background: block.background || "#f4efe6",
+      color: block.color || "#2a2420",
+    });
+  }
+  for (const src of job.images || []) body.push({ type: "image", src });
+  job.body = body;
+  return body;
+}
+
+function syncDerived(job) {
+  ensureBody(job);
+  job.blocks = job.body.filter((item) => item.type === "text").map((item) => ({
+    text: item.text || "",
+    background: cssHex(item.background, "#f4efe6"),
+    color: cssHex(item.color, "#2a2420"),
+  }));
+  job.images = job.body.filter((item) => item.type === "image").map((item) => item.src).filter(Boolean);
+}
+
+function markupFrom(node) {
+  let html = "";
+  for (const child of node.childNodes) {
+    if (child.nodeType === Node.TEXT_NODE) html += escapeHtml(child.textContent);
+    else if (child.nodeName === "BR") html += "<br>";
+    else if (child.nodeName === "B" || child.nodeName === "STRONG") html += `<b>${markupFrom(child)}</b>`;
+    else if (child.nodeName === "I" || child.nodeName === "EM") html += `<i>${markupFrom(child)}</i>`;
+    else {
+      if ((child.nodeName === "DIV" || child.nodeName === "P") && html && !html.endsWith("<br>")) html += "<br>";
+      html += markupFrom(child);
+    }
+  }
+  return html;
+}
+
 function payload() {
   return {
-    jobs: state.jobs.map((job) => ({
-      id: job.id,
-      name: (job.name || "").trim(),
-      align: job.align === "right" ? "right" : "left",
-      tagline: (job.tagline || "").trim(),
-      colors: YxPalette.jobColors(job),
-      blocks: (job.blocks || []).map((block) => ({
-        text: block.text || "",
-        background: cssHex(block.background, "#f4efe6"),
-        color: cssHex(block.color, "#2a2420"),
-      })),
-      banner: job.banner || "",
-      portrait: job.portrait || "",
-      images: (job.images || []).filter(Boolean),
-      sprites: (job.sprites || []).map((sprite) => ({
-        src: sprite.src,
-        x: Number(sprite.x) || 0,
-        y: Number(sprite.y) || 0,
-        rotate: Number(sprite.rotate) || 0,
-      })),
-    })),
+    jobs: state.jobs.map((job) => {
+      syncDerived(job);
+      return {
+        id: job.id,
+        name: (job.name || "").trim(),
+        align: job.align === "right" ? "right" : "left",
+        tagline: (job.tagline || "").trim(),
+        colors: YxPalette.jobColors(job),
+        body: ensureBody(job).map((item) => (
+          item.type === "image"
+            ? { type: "image", src: item.src }
+            : {
+                type: "text",
+                text: item.text || "",
+                markup: item.markup || "",
+                background: cssHex(item.background, "#f4efe6"),
+                color: cssHex(item.color, "#2a2420"),
+              }
+        )),
+        blocks: job.blocks,
+        banner: job.banner || "",
+        portrait: job.portrait || "",
+        images: job.images,
+        sprites: (job.sprites || []).map((sprite) => ({
+          src: sprite.src,
+          x: Number(sprite.x) || 0,
+          y: Number(sprite.y) || 0,
+          rotate: Number(sprite.rotate) || 0,
+        })),
+      };
+    }),
   };
 }
 
@@ -136,11 +192,40 @@ async function persist() {
   state.jobs = saved.jobs;
 }
 
+function quantizeEdge(edge) {
+  const step = 160;
+  const clamped = Math.min(8192, Math.max(480, Math.round(edge)));
+  return Math.ceil(clamped / step) * step;
+}
+
+function displayPath(src, edge, quality) {
+  const params = new URLSearchParams({
+    src,
+    w: String(quantizeEdge(edge)),
+    q: String(quality),
+  });
+  return `/api/display?${params}`;
+}
+
+function bannerDisplay(src) {
+  const pixels = window.innerWidth * (window.devicePixelRatio || 1);
+  return displayPath(src, pixels, 90);
+}
+
+function galleryDisplay(src) {
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const css = window.innerHeight;
+  const softer = Math.max(css, css * dpr * 0.72);
+  return displayPath(src, softer, 74);
+}
+
 function bindMenu(node, original, extra) {
   node.addEventListener("contextmenu", (event) => {
     event.preventDefault();
+    event.stopPropagation();
     const items = [{ label: "View original", href: original }];
-    if (state.admin) items.push({ label: "Replace", action: extra.replace });
+    if (state.admin && extra.replace) items.push({ label: "Replace", action: extra.replace });
+    if (state.admin && extra.remove) items.push({ label: "Remove", action: extra.remove });
     if (extra.turn) items.push({ label: "Turn 90°", action: extra.turn });
     showMenu(event.clientX, event.clientY, items);
   });
@@ -150,8 +235,16 @@ function plate(className, src, alt, options) {
   if (!src) return null;
   const frame = h("figure", { class: className });
   const image = h("img", { src: options.display || src, alt, "data-original": src });
+  if (options.kind) image.dataset.kind = options.kind;
+  image.addEventListener("load", () => {
+    if (options.kind !== "gallery") return;
+    const tall = image.naturalHeight > image.naturalWidth;
+    frame.classList.toggle("is-tall", tall);
+    frame.classList.toggle("is-wide", !tall);
+  });
   image.addEventListener("error", () => {
     if (image.getAttribute("src") !== src) {
+      image.dataset.fellback = "1";
       image.src = src;
       return;
     }
@@ -165,7 +258,8 @@ function plate(className, src, alt, options) {
 function renderJob(job) {
   const side = job.align === "right" ? "right" : "left";
   const banner = plate("banner", job.banner, `${job.name} illustration`, {
-    display: `/api/display?src=${encodeURIComponent(job.banner)}`,
+    kind: "banner",
+    display: bannerDisplay(job.banner),
     replace: () => replaceSlot(job, "banner"),
   });
   const portrait = plate("portrait", job.portrait, `${job.name} portrait`, {
@@ -177,18 +271,11 @@ function renderJob(job) {
     h(
       "h1",
       {},
-      h(
-        "span",
-        { class: "name-ornament", "aria-hidden": "true" },
-        h("span", { class: "gem gem-side" }),
-        h("span", { class: "gem" }),
-        h("span", { class: "gem gem-side" })
-      ),
+      h("span", { class: "name-ornament", "aria-hidden": "true" }, h("span")),
       h("span", { class: "name-text" }, job.name)
     ),
     job.tagline ? h("p", { class: "tagline" }, job.tagline) : null
   );
-  const blocks = (job.blocks || []).filter((block) => (block.text || "").trim());
   return h(
     "article",
     { class: `job side-${side}${job.banner ? " has-cover" : ""}` },
@@ -197,30 +284,116 @@ function renderJob(job) {
       "div",
       { class: "stage" },
       portrait ? h("div", { class: "identity" }, portrait, copy) : copy,
-      blocks.length
-        ? h(
-            "div",
-            { class: "blocks" },
-            ...blocks.map((block) =>
-              h(
-                "section",
-                { class: "panel", style: `background:${cssHex(block.background, "#f4efe6")};color:${cssHex(block.color, "#2a2420")}` },
-                h("div", { class: "panel-text" }, block.text)
-              )
-            )
-          )
-        : null,
-      h(
-        "div",
-        { class: "gallery" },
-        ...(job.images || []).map((src, index) =>
-          plate("plate", src, `${job.name} picture ${index + 1}`, {
-            replace: () => replaceList(job, "images", index),
-          })
-        )
-      )
+      ...renderFlow(job)
     )
   );
+}
+
+function renderFlow(job) {
+  ensureBody(job);
+  const nodes = [];
+  let run = [];
+  const flush = () => {
+    if (!run.length) return;
+    nodes.push(h("div", { class: "gallery" }, ...run));
+    run = [];
+  };
+  job.body.forEach((item, index) => {
+    if (item.type === "image") {
+      const figure = plate("plate", item.src, `${job.name} picture`, {
+        kind: "gallery",
+        display: galleryDisplay(item.src),
+        replace: () => replaceBodyImage(job, index),
+        remove: () => removeBody(job, index),
+      });
+      if (figure) run.push(figure);
+      return;
+    }
+    flush();
+    if (!state.admin && !(item.text || "").trim()) return;
+    const text = h("div", {
+      class: "panel-text",
+      contenteditable: state.admin ? "true" : null,
+      onblur: (event) => commitBlock(job, item, event.target),
+    });
+    text.innerHTML = item.markup || escapeHtml(item.text || "").replace(/\n/g, "<br>");
+    nodes.push(h(
+      "section",
+      { class: "panel", style: `background:${cssHex(item.background, "#f4efe6")};color:${cssHex(item.color, "#2a2420")}` },
+      text
+    ));
+  });
+  flush();
+  return nodes;
+}
+
+function addText(job) {
+  if (!state.admin) return;
+  ensureBody(job);
+  job.body.push({ type: "text", text: "", markup: "", background: "#f4efe6", color: "#2a2420" });
+  paint();
+  const fields = document.querySelectorAll(".panel-text[contenteditable='true']");
+  const field = fields[fields.length - 1];
+  if (field) field.focus();
+}
+
+async function commitBlock(job, item, node) {
+  if (!state.admin) return;
+  const text = node.innerText.replace(/\u00a0/g, " ").replace(/\n$/, "");
+  const markup = markupFrom(node);
+  if (!text.trim()) {
+    const hadText = Boolean((item.text || "").trim());
+    job.body = job.body.filter((entry) => entry !== item);
+    if (!hadText) {
+      paint();
+      return;
+    }
+  } else if (text === item.text && markup === (item.markup || "")) {
+    return;
+  } else {
+    item.text = text;
+    item.markup = markup;
+  }
+  try {
+    await persist();
+  } catch (error) {
+    window.alert(error.message);
+    return;
+  }
+  paint();
+}
+
+async function removeBody(job, index) {
+  ensureBody(job);
+  job.body.splice(index, 1);
+  try {
+    await persist();
+    paint();
+  } catch (error) {
+    window.alert(error.message);
+  }
+}
+
+async function replaceBodyImage(job, index) {
+  const file = await chooseFile();
+  if (!file) return;
+  try {
+    ensureBody(job);
+    job.body[index].src = await uploadFile(file);
+    await persist();
+    paint();
+  } catch (error) {
+    window.alert(error.message);
+  }
+}
+
+function fitOrnament() {
+  document.querySelectorAll(".identity-copy h1").forEach((heading) => {
+    const name = heading.querySelector(".name-text");
+    const ornament = heading.querySelector(".name-ornament");
+    if (!name || !ornament) return;
+    ornament.style.width = `${Math.ceil(name.getBoundingClientRect().width)}px`;
+  });
 }
 
 async function replaceSlot(job, key) {
@@ -355,12 +528,35 @@ function paint() {
     document.title = `${job.name} · ${SITE_NAME}`;
   }
   window.scrollTo(0, scroll);
+  fitOrnament();
 }
 
 document.addEventListener("pointerdown", (event) => {
   if (!event.target.closest(".image-menu")) closeMenu();
 });
+document.addEventListener("contextmenu", (event) => {
+  if (!state.admin) return;
+  if (event.target.closest("img, .sprite, .image-menu, a, button, input, textarea, .panel-text")) return;
+  const { job } = selected(state.jobs);
+  if (!job) return;
+  event.preventDefault();
+  showMenu(event.clientX, event.clientY, [{ label: "Add text", action: () => addText(job) }]);
+});
 window.addEventListener("hashchange", () => paint());
+let displayTimer = 0;
+window.addEventListener("resize", () => {
+  clearTimeout(displayTimer);
+  displayTimer = window.setTimeout(() => {
+    document.querySelectorAll("img[data-kind]").forEach((image) => {
+      if (image.dataset.fellback) return;
+      const src = image.dataset.original;
+      const next = image.dataset.kind === "banner" ? bannerDisplay(src) : galleryDisplay(src);
+      if (image.getAttribute("src") !== next) image.src = next;
+    });
+    fitOrnament();
+  }, 180);
+});
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitOrnament());
 
 async function boot() {
   const main = document.getElementById("content");

@@ -88,7 +88,7 @@ function editor() {
       { class: "panel" },
       h("h2", {}, "职业"),
       h("p", { class: "hint" }, "配色和文字在这里改，网页本身不加编辑条。页面背景就是横图渐变落到的颜色。顶栏用另一色。"),
-      h("p", { class: "hint" }, "头图在网页上会略降清晰度。右键可以打开原图；登录后右键还能替换这张图。小人在网页上拖动，右键转 90°。画廊和小人可以一次选多张。"),
+      h("p", { class: "hint" }, "头图按屏幕清晰度显示，画廊会略糊一些。右键打开原图；登录后可以替换，画廊还能移除。空白处右键可以加文字。"),
       ...state.jobs.map((job, index) => jobCard(job, index)),
       h("button", { type: "button", onclick: addJob }, "添加职业")
     ),
@@ -186,16 +186,13 @@ function jobCard(job, index) {
       ],
       job.colors
     ),
-    h("h3", {}, "文字板块"),
-    ...job.blocks.map((block, blockIndex) => blockEditor(job, block, blockIndex)),
-    h("button", { type: "button", onclick: () => addBlock(job) }, "加文字板块"),
     h(
       "div",
       { class: "uploads" },
       uploadSlot(job, "banner", "横版插图", "banner"),
       uploadSlot(job, "portrait", "方邮票头像", "stamp")
     ),
-    extraImages(job),
+    bodySheet(job),
     spriteList(job),
     h(
       "div",
@@ -210,6 +207,169 @@ function jobCard(job, index) {
 function setAlign(job, side) {
   job.align = side;
   state.dirty = true;
+  paint();
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[char]));
+}
+
+function ensureBody(job) {
+  if (Array.isArray(job.body)) return job.body;
+  const body = [];
+  for (const block of job.blocks || []) {
+    body.push({
+      type: "text",
+      text: block.text || "",
+      markup: escapeHtml(block.text || "").replace(/\n/g, "<br>"),
+      background: block.background || "#f4efe6",
+      color: block.color || "#2a2420",
+    });
+  }
+  for (const src of job.images || []) body.push({ type: "image", src });
+  job.body = body;
+  return body;
+}
+
+function markupFrom(node) {
+  let html = "";
+  for (const child of node.childNodes) {
+    if (child.nodeType === Node.TEXT_NODE) html += escapeHtml(child.textContent);
+    else if (child.nodeName === "BR") html += "<br>";
+    else if (child.nodeName === "B" || child.nodeName === "STRONG") html += `<b>${markupFrom(child)}</b>`;
+    else if (child.nodeName === "I" || child.nodeName === "EM") html += `<i>${markupFrom(child)}</i>`;
+    else {
+      if ((child.nodeName === "DIV" || child.nodeName === "P") && html && !html.endsWith("<br>")) html += "<br>";
+      html += markupFrom(child);
+    }
+  }
+  return html;
+}
+
+function rememberText(item, node) {
+  item.markup = markupFrom(node);
+  item.text = node.innerText.replace(/\u00a0/g, " ").replace(/\n$/, "");
+  state.dirty = true;
+}
+
+function bodySheet(job) {
+  ensureBody(job);
+  const file = h("input", {
+    type: "file",
+    accept: "image/jpeg,image/png,image/webp,image/gif",
+    multiple: "true",
+    onchange: (event) => uploadIntoBody(job, event.target.files, event.target),
+  });
+  return h(
+    "div",
+    { class: "sheet" },
+    h("h3", {}, "正文"),
+    h("p", { class: "hint" }, "邮票下面的内容在这里排。可以直接写，加粗和斜体，段落和图片都能上下移动。图片可以一次选多张。"),
+    h(
+      "div",
+      { class: "sheet-tools" },
+      h("button", { type: "button", onmousedown: (event) => event.preventDefault(), onclick: () => document.execCommand("bold") }, "加粗"),
+      h("button", { type: "button", onmousedown: (event) => event.preventDefault(), onclick: () => document.execCommand("italic") }, "斜体")
+    ),
+    ...job.body.map((item, index) => sheetItem(job, item, index)),
+    h(
+      "div",
+      { class: "row-actions" },
+      h("button", { type: "button", onclick: () => addSheetText(job) }, "加一段"),
+      h("label", { class: "file-button" }, "插入图片", file)
+    )
+  );
+}
+
+function sheetItem(job, item, index) {
+  const move = h(
+    "div",
+    { class: "row-actions" },
+    h("button", { type: "button", onclick: () => moveBody(job, index, -1), disabled: index === 0 }, "上移"),
+    h("button", { type: "button", onclick: () => moveBody(job, index, 1), disabled: index === job.body.length - 1 }, "下移"),
+    h("button", { type: "button", onclick: () => removeSheetItem(job, index) }, "去掉")
+  );
+  if (item.type === "image") {
+    return h(
+      "div",
+      { class: "sheet-image" },
+      h("figure", {}, h("img", { src: item.src, alt: "" })),
+      move
+    );
+  }
+  const text = h("div", {
+    class: "sheet-text",
+    contenteditable: "true",
+    oninput: (event) => rememberText(item, event.target),
+  });
+  text.innerHTML = item.markup || escapeHtml(item.text || "").replace(/\n/g, "<br>");
+  return h(
+    "div",
+    { class: "sheet-block" },
+    text,
+    colorGrid(
+      [
+        ["background", "底色"],
+        ["color", "文字"],
+      ],
+      item
+    ),
+    move
+  );
+}
+
+function addSheetText(job) {
+  ensureBody(job);
+  job.body.push({ type: "text", text: "", markup: "", background: "#f4efe6", color: "#2a2420" });
+  state.dirty = true;
+  paint();
+  const fields = document.querySelectorAll(".sheet-text");
+  const field = fields[fields.length - 1];
+  if (field) field.focus();
+}
+
+function moveBody(job, index, step) {
+  const next = index + step;
+  if (next < 0 || next >= job.body.length) return;
+  const [item] = job.body.splice(index, 1);
+  job.body.splice(next, 0, item);
+  state.dirty = true;
+  paint();
+}
+
+function removeSheetItem(job, index) {
+  job.body.splice(index, 1);
+  state.dirty = true;
+  paint();
+}
+
+async function uploadIntoBody(job, fileList, input) {
+  const files = [...fileList];
+  if (!files.length) return;
+  ensureBody(job);
+  const room = 40 - job.body.filter((item) => item.type === "image").length;
+  if (room <= 0) {
+    state.error = "这一页的图片已经到 40 张";
+    input.value = "";
+    paint();
+    return;
+  }
+  const batch = files.slice(0, room);
+  state.error = "";
+  state.message = `正在上传 1/${batch.length}…`;
+  paint();
+  try {
+    for (let index = 0; index < batch.length; index += 1) {
+      state.message = `正在上传 ${index + 1}/${batch.length}…`;
+      job.body.push({ type: "image", src: await sendFile(batch[index]) });
+      state.dirty = true;
+    }
+    state.message = `已插入 ${batch.length} 张图片，记得点保存。`;
+  } catch (error) {
+    state.error = error.message;
+    state.message = "";
+  }
+  input.value = "";
   paint();
 }
 
@@ -435,27 +595,41 @@ function removeJob(index) {
 
 function payload() {
   return {
-    jobs: state.jobs.map((job) => ({
-      id: job.id,
-      name: (job.name || "").trim(),
-      align: job.align === "right" ? "right" : "left",
-      tagline: (job.tagline || "").trim(),
-      colors: YxPalette.jobColors(job),
-      blocks: (job.blocks || []).map((block) => ({
-        text: block.text || "",
-        background: cssHex(block.background, "#f4efe6"),
-        color: cssHex(block.color, "#2a2420"),
-      })),
-      banner: job.banner || "",
-      portrait: job.portrait || "",
-      images: (job.images || []).filter(Boolean),
-      sprites: (job.sprites || []).map((sprite) => ({
-        src: sprite.src,
-        x: Number(sprite.x) || 0,
-        y: Number(sprite.y) || 0,
-        rotate: Number(sprite.rotate) || 0,
-      })),
-    })),
+    jobs: state.jobs.map((job) => {
+      const body = ensureBody(job).map((item) => (
+        item.type === "image"
+          ? { type: "image", src: item.src }
+          : {
+              type: "text",
+              text: item.text || "",
+              markup: item.markup || "",
+              background: cssHex(item.background, "#f4efe6"),
+              color: cssHex(item.color, "#2a2420"),
+            }
+      ));
+      return {
+        id: job.id,
+        name: (job.name || "").trim(),
+        align: job.align === "right" ? "right" : "left",
+        tagline: (job.tagline || "").trim(),
+        colors: YxPalette.jobColors(job),
+        body,
+        blocks: body.filter((item) => item.type === "text").map((item) => ({
+          text: item.text,
+          background: item.background,
+          color: item.color,
+        })),
+        banner: job.banner || "",
+        portrait: job.portrait || "",
+        images: body.filter((item) => item.type === "image").map((item) => item.src),
+        sprites: (job.sprites || []).map((sprite) => ({
+          src: sprite.src,
+          x: Number(sprite.x) || 0,
+          y: Number(sprite.y) || 0,
+          rotate: Number(sprite.rotate) || 0,
+        })),
+      };
+    }),
   };
 }
 

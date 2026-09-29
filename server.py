@@ -9,6 +9,8 @@ import secrets
 import socket
 import threading
 import time
+from html import escape, unescape
+from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -18,6 +20,9 @@ DATA = ROOT / "data"
 UPLOADS = ROOT / "images" / "uploads"
 DISPLAYS = UPLOADS / ".display"
 DISPLAY_EDGE = 1920
+EDGE_MIN = 480
+EDGE_MAX = 8192
+EDGE_STEP = 160
 SITE_PATH = DATA / "site.json"
 ADMIN_PATH = DATA / "admin.json"
 SECRET_PATH = DATA / "secret.key"
@@ -266,6 +271,144 @@ def clean_images(value, strict):
     return images
 
 
+class RichText(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+        self.skip = 0
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        if tag in ("script", "style"):
+            self.skip += 1
+            return
+        if self.skip:
+            return
+        if tag in ("b", "strong"):
+            self.parts.append("<b>")
+        elif tag in ("i", "em"):
+            self.parts.append("<i>")
+        elif tag == "br":
+            self.parts.append("<br>")
+        elif tag in ("p", "div", "li") and self.parts and self.parts[-1] != "<br>":
+            self.parts.append("<br>")
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag in ("script", "style"):
+            if self.skip:
+                self.skip -= 1
+            return
+        if self.skip:
+            return
+        if tag in ("b", "strong"):
+            self.parts.append("</b>")
+        elif tag in ("i", "em"):
+            self.parts.append("</i>")
+
+    def handle_data(self, data):
+        if self.skip:
+            return
+        self.parts.append(escape(data, quote=False))
+
+
+def clean_markup(value):
+    parser = RichText()
+    parser.feed(str(value or "")[:12000])
+    parser.close()
+    markup = "".join(parser.parts).strip()
+    return markup[:8000]
+
+
+def plain_from_markup(markup):
+    text = re.sub(r"(?i)<br\s*/?>", "\n", markup)
+    text = re.sub(r"<[^>]+>", "", text)
+    return unescape(text).strip()[:6000]
+
+
+def text_item(text, markup, background, color, strict):
+    cleaned = clean_markup(markup if markup else escape(text or "", quote=False).replace("\n", "<br>"))
+    plain = plain_from_markup(cleaned) or str(text or "").strip()[:6000]
+    if not plain and not cleaned:
+        if strict:
+            return {
+                "type": "text",
+                "text": "",
+                "markup": "",
+                "background": clean_hex(background, "文字板块底色", None) if strict else PANEL_BACKGROUND,
+                "color": clean_hex(color, "文字板块文字", None) if strict else PANEL_TEXT,
+            }
+        return None
+    return {
+        "type": "text",
+        "text": plain,
+        "markup": cleaned or escape(plain, quote=False).replace("\n", "<br>"),
+        "background": clean_hex(background, "文字板块底色", PANEL_BACKGROUND if not strict else None),
+        "color": clean_hex(color, "文字板块文字", PANEL_TEXT if not strict else None),
+    }
+
+
+def parse_body(raw, strict):
+    if strict and len(raw) > MAX_BLOCKS + MAX_IMAGES:
+        raise ValueError("正文太长了")
+    body = []
+    texts = 0
+    pictures = 0
+    for item in raw:
+        if not isinstance(item, dict):
+            if strict:
+                raise ValueError("正文格式不对")
+            continue
+        kind = str(item.get("type") or "").strip().lower()
+        if kind == "image":
+            src = clean_image(item.get("src"), strict)
+            if not src:
+                continue
+            pictures += 1
+            if pictures > MAX_IMAGES:
+                if strict:
+                    raise ValueError(f"每个职业最多 {MAX_IMAGES} 张更多图片")
+                continue
+            body.append({"type": "image", "src": src})
+            continue
+        if kind not in ("text", ""):
+            if strict:
+                raise ValueError("正文格式不对")
+            continue
+        texts += 1
+        if texts > MAX_BLOCKS:
+            if strict:
+                raise ValueError(f"每个职业最多 {MAX_BLOCKS} 个文字板块")
+            continue
+        block = text_item(item.get("text", ""), item.get("markup", ""), item.get("background"), item.get("color"), strict)
+        if block:
+            body.append(block)
+    blocks = [
+        {"text": item["text"], "background": item["background"], "color": item["color"]}
+        for item in body
+        if item["type"] == "text"
+    ]
+    images = [item["src"] for item in body if item["type"] == "image"]
+    return body, blocks, images
+
+
+def body_from_legacy(job, strict):
+    blocks = clean_blocks(job, strict)
+    images = clean_images(job.get("images"), strict)
+    body = []
+    for block in blocks:
+        body.append({
+            "type": "text",
+            "text": block["text"],
+            "markup": escape(block["text"], quote=False).replace("\n", "<br>"),
+            "background": block["background"],
+            "color": block["color"],
+        })
+    for src in images:
+        body.append({"type": "image", "src": src})
+    return body, blocks, images
+
+
 def clean_job(job, strict=True):
     if not isinstance(job, dict):
         raise ValueError("职业格式不对")
@@ -276,6 +419,10 @@ def clean_job(job, strict=True):
     if not name or len(name) > 40:
         raise ValueError("职业名称需要 1 到 40 个字符")
     colors = clean_job_colors(job, strict)
+    if isinstance(job.get("body"), list):
+        body, blocks, images = parse_body(job.get("body"), strict)
+    else:
+        body, blocks, images = body_from_legacy(job, strict)
     if not strict:
         theme = job.get("_theme") if isinstance(job.get("_theme"), dict) else {}
         source = job.get("colors") if isinstance(job.get("colors"), dict) else {}
@@ -293,10 +440,11 @@ def clean_job(job, strict=True):
         "align": clean_align(job.get("align")),
         "tagline": str(job.get("tagline", "")).strip()[:160],
         "colors": colors,
-        "blocks": clean_blocks(job, strict),
+        "body": body,
+        "blocks": blocks,
         "banner": clean_image(job.get("banner"), strict),
         "portrait": clean_image(job.get("portrait"), strict),
-        "images": clean_images(job.get("images"), strict),
+        "images": images,
         "sprites": clean_sprites(job.get("sprites"), strict),
     }
 
@@ -340,8 +488,25 @@ def public_site():
     return {"jobs": jobs}
 
 
-def soften_banner(source):
-    """A slightly smaller copy for the header. The uploaded file stays untouched."""
+def requested_edge(value):
+    try:
+        edge = int(str(value).strip() or DISPLAY_EDGE)
+    except ValueError:
+        edge = DISPLAY_EDGE
+    edge = min(EDGE_MAX, max(EDGE_MIN, edge))
+    return ((edge + EDGE_STEP - 1) // EDGE_STEP) * EDGE_STEP
+
+
+def requested_quality(value):
+    try:
+        quality = int(str(value).strip() or 88)
+    except ValueError:
+        quality = 88
+    return min(90, max(70, quality))
+
+
+def soften_image(source, edge, quality):
+    """A display copy. The uploaded file stays untouched, and nothing is upscaled."""
     try:
         from PIL import Image
     except ImportError:
@@ -351,24 +516,25 @@ def soften_banner(source):
         if getattr(image, "n_frames", 1) > 1:
             return source
         width, height = image.size
-        if max(width, height) <= DISPLAY_EDGE and source.stat().st_size < 1_800_000:
+        if max(width, height) <= edge:
             return source
         has_alpha = image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info)
         suffix = ".png" if has_alpha else ".jpg"
-        target = DISPLAYS / f"{source.stem}-{stamp}{suffix}"
+        target = DISPLAYS / f"{source.stem}-{stamp}-{edge}-q{quality}{suffix}"
         if target.is_file():
             return target
         DISPLAYS.mkdir(parents=True, exist_ok=True)
         frame = image.copy()
-        frame.thumbnail((DISPLAY_EDGE, DISPLAY_EDGE), Image.Resampling.LANCZOS)
+        frame.thumbnail((edge, edge), Image.Resampling.LANCZOS)
         temporary = target.with_suffix(target.suffix + ".part")
         if has_alpha:
             frame.convert("RGBA").save(temporary, format="PNG", optimize=True)
         else:
-            frame.convert("RGB").save(temporary, format="JPEG", quality=82, optimize=True)
+            frame.convert("RGB").save(temporary, format="JPEG", quality=quality, optimize=True)
         temporary.replace(target)
+        prefix = f"{source.stem}-{stamp}-"
         for stale in DISPLAYS.glob(f"{source.stem}-*"):
-            if stale != target:
+            if not stale.name.startswith(prefix):
                 stale.unlink(missing_ok=True)
         return target
 
@@ -680,7 +846,10 @@ class Handler(BaseHTTPRequestHandler):
         return f"yx_session={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=1209600"
 
     def handle_display(self, query):
-        src = (parse_qs(query).get("src") or [""])[0]
+        params = parse_qs(query)
+        src = (params.get("src") or [""])[0]
+        edge = requested_edge((params.get("w") or [""])[0])
+        quality = requested_quality((params.get("q") or [""])[0])
         try:
             cleaned = clean_image(src, strict=True)
         except ValueError:
@@ -688,7 +857,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         source = ROOT / cleaned
         try:
-            path = soften_banner(source)
+            path = soften_image(source, edge, quality)
         except Exception:
             path = source
         blob = path.read_bytes()
