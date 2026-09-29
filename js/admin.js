@@ -502,6 +502,13 @@ async function openEditor() {
   paint();
 }
 
+function syncTopbar() {
+  document.querySelector(".topbar")?.classList.toggle("is-scrolled", window.scrollY > 8);
+}
+
+window.addEventListener("scroll", syncTopbar, { passive: true });
+syncTopbar();
+
 window.addEventListener("beforeunload", (event) => {
   if (!state.dirty) return;
   event.preventDefault();

@@ -174,7 +174,12 @@ function renderJob(job) {
   const copy = h(
     "div",
     { class: "identity-copy" },
-    h("h1", {}, job.name),
+    h(
+      "h1",
+      {},
+      h("span", { class: "name-ornament", "aria-hidden": "true" }, h("span")),
+      h("span", { class: "name-text" }, job.name)
+    ),
     job.tagline ? h("p", { class: "tagline" }, job.tagline) : null
   );
   const blocks = (job.blocks || []).filter((block) => (block.text || "").trim());
@@ -346,10 +351,16 @@ function paint() {
   window.scrollTo(0, scroll);
 }
 
+function syncTopbar() {
+  document.querySelector(".topbar")?.classList.toggle("is-scrolled", window.scrollY > 8);
+}
+
 document.addEventListener("pointerdown", (event) => {
   if (!event.target.closest(".image-menu")) closeMenu();
 });
 window.addEventListener("hashchange", () => paint());
+window.addEventListener("scroll", syncTopbar, { passive: true });
+syncTopbar();
 
 async function boot() {
   const main = document.getElementById("content");

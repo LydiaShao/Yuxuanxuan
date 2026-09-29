@@ -90,12 +90,47 @@ main#content {
   top: 0;
   z-index: 4;
   color: var(--bar-text);
+  background: none;
+  border-bottom: 0;
+}
+
+.topbar::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
   background: color-mix(in srgb, var(--bar) 88%, transparent);
   backdrop-filter: blur(14px);
-  border-bottom: 1px solid color-mix(in srgb, var(--bar-text) 28%, transparent);
+  pointer-events: none;
+}
+
+.topbar::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 1.75rem;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--bar) 88%, transparent), transparent);
+  backdrop-filter: blur(12px);
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent);
+  mask-image: linear-gradient(to bottom, #000, transparent);
+  transition: opacity 180ms ease;
+}
+
+.topbar.is-scrolled::after {
+  opacity: 1;
 }
 
 .bar {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 1.5rem;
@@ -268,6 +303,49 @@ h1 {
   font-size: clamp(1.9rem, 4vw, 2.7rem);
   letter-spacing: 0;
   line-height: 1.15;
+}
+
+.identity-copy h1 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 100%;
+  font-size: clamp(2.05rem, 4.4vw, 3rem);
+  line-height: 1.02;
+  font-variation-settings: "opsz" 144, "SOFT" 40, "WONK" 1;
+}
+
+.side-right .identity-copy h1 {
+  align-items: flex-end;
+}
+
+.name-ornament {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  width: fit-content;
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+}
+
+.name-ornament::before,
+.name-ornament::after {
+  content: "";
+  width: 1.7rem;
+  height: 1px;
+  background: currentColor;
+}
+
+.name-ornament span {
+  width: 0.36rem;
+  height: 0.36rem;
+  flex: none;
+  background: currentColor;
+  transform: rotate(45deg);
+}
+
+.name-text {
+  min-width: 0;
 }
 
 .tagline {
