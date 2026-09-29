@@ -37,8 +37,36 @@ TYPES = {
     ".webp": "image/webp",
     ".gif": "image/gif",
 }
-DEFAULT_THEME = {"color": "#7dceb8"}
-DEFAULT_JOB_COLOR = "#7dceb8"
+DEFAULT_THEME = {
+    "background": "#1b3330",
+    "surface": "#274640",
+    "text": "#f4faf7",
+    "muted": "#b7cfc6",
+    "accent": "#7dceb8",
+    "onAccent": "#102824",
+}
+DEFAULT_JOB_COLORS = {
+    "background": "#1e3a34",
+    "fade": "#7dceb8",
+    "text": "#f4faf7",
+    "muted": "#c5ddd4",
+}
+THEME_KEYS = ("background", "surface", "text", "muted", "accent", "onAccent")
+JOB_COLOR_KEYS = ("background", "fade", "text", "muted")
+THEME_LABELS = {
+    "background": "背景",
+    "surface": "面板",
+    "text": "文字",
+    "muted": "次要文字",
+    "accent": "点缀",
+    "onAccent": "按钮文字",
+}
+JOB_COLOR_LABELS = {
+    "background": "页面背景",
+    "fade": "渐变",
+    "text": "文字",
+    "muted": "次要文字",
+}
 MAX_IMAGES = 40
 
 FAILURES = {}
@@ -127,16 +155,29 @@ def clean_hex(value, label, fallback=None):
     return fallback
 
 
+def clean_color_map(source, keys, labels, defaults, legacy_key, legacy_value, strict):
+    source = source if isinstance(source, dict) else {}
+    if strict:
+        return {key: clean_hex(source.get(key), labels[key]) for key in keys}
+    cleaned = dict(defaults)
+    for key in keys:
+        text = str(source.get(key) or "").strip()
+        if HEX.match(text):
+            cleaned[key] = text.lower()
+    legacy = str(legacy_value or "").strip()
+    if legacy_key and HEX.match(legacy) and not HEX.match(str(source.get(legacy_key) or "").strip()):
+        cleaned[legacy_key] = legacy.lower()
+    return cleaned
+
+
 def clean_theme(incoming, strict=True):
-    raw = ""
-    if isinstance(incoming, dict):
-        raw = incoming.get("color", incoming.get("accent", ""))
-    try:
-        return {"color": clean_hex(raw, "网站主题色")}
-    except ValueError:
-        if strict:
-            raise
-        return dict(DEFAULT_THEME)
+    source = incoming if isinstance(incoming, dict) else {}
+    return clean_color_map(source, THEME_KEYS, THEME_LABELS, DEFAULT_THEME, "accent", source.get("color", ""), strict)
+
+
+def clean_job_colors(job, strict):
+    source = job.get("colors") if isinstance(job.get("colors"), dict) else {}
+    return clean_color_map(source, JOB_COLOR_KEYS, JOB_COLOR_LABELS, DEFAULT_JOB_COLORS, "fade", job.get("color"), strict)
 
 
 def clean_images(value, strict):
@@ -172,7 +213,7 @@ def clean_job(job, strict=True):
         "name": name,
         "tagline": str(job.get("tagline", "")).strip()[:160],
         "paragraphs": [item[:2000] for item in text],
-        "color": clean_hex(job.get("color"), "职业印象色", None if strict else DEFAULT_JOB_COLOR),
+        "colors": clean_job_colors(job, strict),
         "banner": clean_image(job.get("banner"), strict),
         "portrait": clean_image(job.get("portrait"), strict),
         "images": clean_images(job.get("images"), strict),

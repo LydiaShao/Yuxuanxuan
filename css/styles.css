@@ -1,13 +1,15 @@
 :root {
-  --theme: #7dceb8;
-  --job: #7dceb8;
-  --background: color-mix(in srgb, var(--theme) 42%, #120e0c);
-  --surface: color-mix(in srgb, var(--theme) 24%, #1c1612);
-  --text: color-mix(in srgb, var(--theme) 12%, #f7f2ec);
-  --muted: color-mix(in srgb, var(--theme) 28%, #b7ab9f);
-  --accent: var(--theme);
-  --on-accent: #1c140e;
-  --frame: var(--job);
+  --background: #1b3330;
+  --surface: #274640;
+  --text: #f4faf7;
+  --muted: #b7cfc6;
+  --accent: #7dceb8;
+  --on-accent: #102824;
+  --job-bg: #1e3a34;
+  --job-fade: #7dceb8;
+  --job-text: #f4faf7;
+  --job-muted: #c5ddd4;
+  --frame: color-mix(in srgb, var(--accent) 42%, var(--background));
   --display: "Fraunces", "Noto Serif SC", Palatino, serif;
   --body: "Literata", "Noto Serif SC", Palatino, serif;
   --ui: "Figtree", "Noto Sans SC", sans-serif;
@@ -65,7 +67,7 @@ textarea {
   top: -4rem;
   z-index: 5;
   background: var(--accent);
-  color: #1a140c;
+  color: var(--on-accent);
   padding: 0.4rem 0.7rem;
   border-radius: 0.35rem;
   text-decoration: none;
@@ -131,12 +133,12 @@ main#content {
 
 .job-nav a[aria-current="page"] {
   color: var(--text);
-  background: color-mix(in srgb, var(--theme) 28%, transparent);
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .job {
   background: var(--job-bg, var(--background));
-  color: var(--job-ink, var(--text));
+  color: var(--job-text, var(--text));
   min-height: calc(100vh - 7rem);
   padding-bottom: 3rem;
 }
@@ -168,7 +170,7 @@ main#content {
   right: 0;
   bottom: 0;
   height: 48%;
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--job) 72%, transparent) 52%, var(--job-bg, var(--background)));
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--job-fade, var(--accent)) 72%, transparent) 52%, var(--job-bg, var(--background)));
   pointer-events: none;
 }
 

@@ -1,71 +1,79 @@
 "use strict";
 
 (function (global) {
-  function clamp(value, min, max) {
-    return Math.min(max, Math.max(min, value));
+  const SITE_DEFAULTS = {
+    background: "#1b3330",
+    surface: "#274640",
+    text: "#f4faf7",
+    muted: "#b7cfc6",
+    accent: "#7dceb8",
+    onAccent: "#102824",
+  };
+  const JOB_DEFAULTS = {
+    background: "#1e3a34",
+    fade: "#7dceb8",
+    text: "#f4faf7",
+    muted: "#c5ddd4",
+  };
+  const SITE_KEYS = Object.keys(SITE_DEFAULTS);
+  const JOB_KEYS = Object.keys(JOB_DEFAULTS);
+
+  function hex(value) {
+    return /^#[0-9a-fA-F]{6}$/.test(value || "") ? value.toLowerCase() : "";
   }
 
-  function hexToHsl(hex) {
-    const number = parseInt(hex.slice(1), 16);
-    const red = ((number >> 16) & 255) / 255;
-    const green = ((number >> 8) & 255) / 255;
-    const blue = (number & 255) / 255;
-    const max = Math.max(red, green, blue);
-    const min = Math.min(red, green, blue);
-    const lightness = (max + min) / 2;
-    const delta = max - min;
-    if (delta === 0) return { h: 0, s: 0, l: lightness * 100 };
-    const saturation = lightness > 0.5 ? delta / (2 - max - min) : delta / (max + min);
-    let hue = 0;
-    if (max === red) hue = (green - blue) / delta + (green < blue ? 6 : 0);
-    else if (max === green) hue = (blue - red) / delta + 2;
-    else hue = (red - green) / delta + 4;
-    return { h: (hue / 6) * 360, s: saturation * 100, l: lightness * 100 };
+  function readMap(source, keys, defaults, legacyKey, legacyValue) {
+    const colors = { ...defaults };
+    const bag = source && typeof source === "object" ? source : {};
+    for (const key of keys) {
+      const value = hex(bag[key]);
+      if (value) colors[key] = value;
+    }
+    const legacy = hex(legacyValue);
+    if (legacyKey && legacy && !hex(bag[legacyKey])) colors[legacyKey] = legacy;
+    return colors;
   }
 
-  function hsl(h, s, l) {
-    return `hsl(${Math.round(h)} ${Math.round(s)}% ${Math.round(l)}%)`;
+  function siteColors(theme) {
+    const source = theme && typeof theme === "object" ? theme : {};
+    return readMap(source, SITE_KEYS, SITE_DEFAULTS, "accent", source.color);
   }
 
-  function schemeFrom(hex) {
-    const { h, s, l } = hexToHsl(hex);
-    const sat = s < 8 ? 12 : clamp(s, 32, 74);
-    return {
-      bg: hsl(h, sat * 0.82, 16),
-      surface: hsl(h, sat * 0.7, 22),
-      ink: hsl(h, clamp(sat * 0.22, 8, 18), 95),
-      muted: hsl(h, clamp(sat * 0.32, 8, 20), 76),
-      soft: hsl(h, clamp(s, 18, 70), clamp(l, 46, 66)),
-      accent: hex,
-      onAccent: l > 64 ? hsl(h, clamp(sat, 18, 48), 16) : hsl(h, 14, 97),
-    };
+  function jobColors(job) {
+    const source = job && typeof job === "object" ? job : {};
+    const bag = source.colors && typeof source.colors === "object" ? source.colors : {};
+    return readMap(bag, JOB_KEYS, JOB_DEFAULTS, "fade", source.color);
   }
 
-  function applySiteScheme(hex) {
-    const scheme = schemeFrom(hex);
+  function applySiteScheme(theme) {
+    const colors = siteColors(theme);
     const root = document.documentElement.style;
-    root.setProperty("--theme", hex);
-    root.setProperty("--background", scheme.bg);
-    root.setProperty("--surface", scheme.surface);
-    root.setProperty("--text", scheme.ink);
-    root.setProperty("--muted", scheme.muted);
-    root.setProperty("--accent", scheme.accent);
-    root.setProperty("--on-accent", scheme.onAccent);
+    root.setProperty("--background", colors.background);
+    root.setProperty("--surface", colors.surface);
+    root.setProperty("--text", colors.text);
+    root.setProperty("--muted", colors.muted);
+    root.setProperty("--accent", colors.accent);
+    root.setProperty("--on-accent", colors.onAccent);
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", scheme.bg);
-    return scheme;
+    if (meta) meta.setAttribute("content", colors.background);
+    return colors;
   }
 
-  function applyJobScheme(element, hex) {
-    const scheme = schemeFrom(hex);
-    element.style.setProperty("--job", hex);
-    element.style.setProperty("--job-bg", scheme.bg);
-    element.style.setProperty("--job-surface", scheme.surface);
-    element.style.setProperty("--job-ink", scheme.ink);
-    element.style.setProperty("--job-muted", scheme.muted);
-    element.style.setProperty("--job-soft", scheme.soft);
-    return scheme;
+  function applyJobScheme(element, job) {
+    const colors = job && job.background && job.fade && job.text && job.muted && !job.colors ? job : jobColors(job);
+    element.style.setProperty("--job-bg", colors.background);
+    element.style.setProperty("--job-fade", colors.fade);
+    element.style.setProperty("--job-text", colors.text);
+    element.style.setProperty("--job-muted", colors.muted);
+    return colors;
   }
 
-  global.YxPalette = { schemeFrom, applySiteScheme, applyJobScheme };
+  global.YxPalette = {
+    SITE_DEFAULTS,
+    JOB_DEFAULTS,
+    siteColors,
+    jobColors,
+    applySiteScheme,
+    applyJobScheme,
+  };
 })(window);

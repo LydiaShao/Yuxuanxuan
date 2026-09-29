@@ -1,11 +1,23 @@
 "use strict";
 
-const FALLBACK_THEME = "#7dceb8";
-const FALLBACK_JOB = "#7dceb8";
+const SITE_FIELDS = [
+  ["background", "背景"],
+  ["surface", "面板"],
+  ["text", "文字"],
+  ["muted", "次要文字"],
+  ["accent", "点缀"],
+  ["onAccent", "按钮文字"],
+];
+const JOB_FIELDS = [
+  ["background", "页面背景"],
+  ["fade", "渐变"],
+  ["text", "文字"],
+  ["muted", "次要文字"],
+];
 
 const state = {
   mode: "loading",
-  theme: { color: FALLBACK_THEME },
+  theme: YxPalette.siteColors({}),
   jobs: [],
   message: "",
   error: "",
@@ -32,8 +44,7 @@ function cssColor(value, fallback) {
 }
 
 function applyTheme(theme) {
-  const color = cssColor(theme && (theme.color || theme.accent), "");
-  if (color) YxPalette.applySiteScheme(color);
+  YxPalette.applySiteScheme(theme || {});
 }
 
 async function api(path, options = {}) {
@@ -101,14 +112,9 @@ function editor() {
     h(
       "section",
       { class: "panel" },
-      h("h2", {}, "网站主题色"),
-      h("p", { class: "hint" }, "所有职业共用。会按这个颜色生成整站的背景、顶栏和文字。"),
-      colorRow("网站主题色", state.theme.color, (next, source) => {
-        state.theme.color = next;
-        state.dirty = true;
-        applyTheme(state.theme);
-        paintScheme(source.closest(".color-field"), next);
-      })
+      h("h2", {}, "网站配色"),
+      h("p", { class: "hint" }, "所有职业共用。每一项都是页面上的实际颜色，改哪一项就变哪一项。"),
+      colorGrid(SITE_FIELDS, state.theme, () => applyTheme(state.theme))
     ),
     h(
       "section",
@@ -120,6 +126,20 @@ function editor() {
       h("button", { type: "button", onclick: addJob }, "添加职业")
     ),
     h("div", { class: "toolbar" }, h("button", { class: "primary", type: "button", onclick: save }, "保存"), h("button", { type: "button", onclick: logout }, "退出"), messageNode())
+  );
+}
+
+function colorGrid(fields, bag, after) {
+  return h(
+    "div",
+    { class: "color-grid" },
+    ...fields.map(([key, label]) =>
+      colorRow(label, bag[key], (next, input) => {
+        bag[key] = next;
+        state.dirty = true;
+        if (after) after(input);
+      })
+    )
   );
 }
 
@@ -139,6 +159,7 @@ function colorRow(label, value, onColor) {
     type: "text",
     value: value || "",
     spellcheck: "false",
+    "aria-label": `${label}色值`,
     oninput: (event) => {
       const next = event.target.value.trim();
       if (/^#[0-9a-fA-F]{6}$/.test(next)) {
@@ -148,27 +169,11 @@ function colorRow(label, value, onColor) {
       }
     },
   });
-  const scheme = YxPalette.schemeFrom(cssColor(value, "#000000"));
-  const swatch = (key, title) => h("i", { class: "swatch", "data-swatch": key, title, style: `background:${scheme[key]}` });
-  return h(
-    "div",
-    { class: "color-field" },
-    h("label", {}, label),
-    color,
-    text,
-    h("div", { class: "scheme" }, swatch("bg", "背景"), swatch("surface", "面板"), swatch("accent", "主色"), swatch("soft", "渐变"), h("span", { class: "hint" }, "背景、面板、主色、渐变"))
-  );
-}
-
-function paintScheme(field, hex) {
-  if (!field) return;
-  const scheme = YxPalette.schemeFrom(hex);
-  field.querySelectorAll("[data-swatch]").forEach((node) => {
-    node.style.background = scheme[node.getAttribute("data-swatch")];
-  });
+  return h("div", { class: "color-field" }, h("label", {}, label), color, text);
 }
 
 function jobCard(job, index) {
+  job.colors = YxPalette.jobColors(job);
   const card = h(
     "article",
     { class: "job-card" },
@@ -180,14 +185,11 @@ function jobCard(job, index) {
     field("一句短文", job.tagline, (value) => {
       job.tagline = value;
     }),
-    colorRow("职业印象色", job.color || FALLBACK_JOB, (next, input) => {
-      job.color = next;
-      state.dirty = true;
-      const card = input.closest(".job-card");
-      if (card) YxPalette.applyJobScheme(card, next);
-      paintScheme(input.closest(".color-field"), next);
+    colorGrid(JOB_FIELDS, job.colors, (input) => {
+      const card = input && input.closest(".job-card");
+      if (card) YxPalette.applyJobScheme(card, job.colors);
     }),
-    h("p", { class: "hint" }, "会生成这一页的背景，横图底部渐变到这个颜色。"),
+    h("p", { class: "hint" }, "页面背景是正文这一块的底色。渐变是横图底部淡进去的颜色。"),
     h("label", {}, "正文"),
     h("textarea", {
       value: (job.paragraphs || []).join("\n\n"),
@@ -212,7 +214,7 @@ function jobCard(job, index) {
       h("button", { class: "danger", type: "button", onclick: () => removeJob(index) }, "删除")
     )
   );
-  YxPalette.applyJobScheme(card, cssColor(job.color, FALLBACK_JOB));
+  YxPalette.applyJobScheme(card, job.colors);
   return card;
 }
 
@@ -330,7 +332,7 @@ function addJob() {
     name: "New Job",
     tagline: "",
     paragraphs: [],
-    color: FALLBACK_JOB,
+    colors: YxPalette.jobColors({}),
     banner: "",
     portrait: "",
     images: [],
@@ -359,13 +361,13 @@ function removeJob(index) {
 
 function payload() {
   return {
-    theme: { color: cssColor(state.theme.color, FALLBACK_THEME) },
+    theme: YxPalette.siteColors(state.theme),
     jobs: state.jobs.map((job) => ({
       id: job.id,
       name: job.name.trim(),
       tagline: job.tagline.trim(),
       paragraphs: job.paragraphs,
-      color: cssColor(job.color, FALLBACK_JOB),
+      colors: YxPalette.jobColors(job),
       banner: job.banner,
       portrait: job.portrait,
       images: Array.isArray(job.images) ? job.images.filter(Boolean) : [],

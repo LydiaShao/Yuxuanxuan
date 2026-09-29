@@ -1,7 +1,6 @@
 "use strict";
 
 const SITE_NAME = "Yuxuanxuan";
-const FALLBACK_JOB = "#7dceb8";
 
 function h(tag, props, ...children) {
   const node = document.createElement(tag);
@@ -17,13 +16,8 @@ function h(tag, props, ...children) {
   return node;
 }
 
-function cssColor(value, fallback) {
-  return /^#[0-9a-fA-F]{6}$/.test(value || "") ? value : fallback;
-}
-
 function applyTheme(theme) {
-  const color = cssColor(theme && (theme.color || theme.accent), "");
-  if (color) YxPalette.applySiteScheme(color);
+  YxPalette.applySiteScheme(theme || {});
 }
 
 function plate(className, src, alt) {
@@ -44,7 +38,6 @@ function renderNav(jobs, activeId) {
         {
           href: `#/job/${encodeURIComponent(job.id)}`,
           "aria-current": job.id === activeId ? "page" : null,
-          style: `--job:${cssColor(job.color, FALLBACK_JOB)}`,
         },
         job.name
       )
@@ -77,7 +70,7 @@ function renderJob(job) {
         )
       : null
   );
-  YxPalette.applyJobScheme(article, cssColor(job.color, FALLBACK_JOB));
+  YxPalette.applyJobScheme(article, job);
   return article;
 }
 
