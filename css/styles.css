@@ -332,12 +332,12 @@ main#content {
   left: 0;
 }
 
-.job > .sash .sash-clip::after {
+.job > .sash::after {
   content: "";
   position: absolute;
-  top: 7%;
-  bottom: 7%;
-  z-index: 1;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
   width: 0.42rem;
   box-sizing: border-box;
   border-style: solid;
@@ -346,11 +346,11 @@ main#content {
   pointer-events: none;
 }
 
-.job.side-left > .sash .sash-clip::after {
+.job.side-left > .sash::after {
   right: 0.82rem;
 }
 
-.job.side-right > .sash .sash-clip::after {
+.job.side-right > .sash::after {
   left: 0.82rem;
 }
 
