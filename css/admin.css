@@ -1,0 +1,247 @@
+.admin-mark {
+  margin: 0 0 0 auto;
+  font-family: var(--ui);
+  color: var(--accent);
+  font-size: 0.95rem;
+}
+
+.gate,
+.editor {
+  padding-top: 2rem;
+}
+
+.gate {
+  max-width: 28rem;
+}
+
+.panel {
+  width: auto;
+  max-width: none;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--frame);
+  border-radius: 0.9rem;
+  padding: 1.1rem 1.15rem 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.panel h2,
+.job-card h3 {
+  margin: 0 0 0.8rem;
+  font-family: var(--display);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+label {
+  display: block;
+  margin: 0.75rem 0 0.3rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+input[type="text"],
+input[type="password"],
+textarea {
+  width: 100%;
+  background: var(--background);
+  border: 1px solid var(--frame);
+  border-radius: 0.55rem;
+  padding: 0.55rem 0.65rem;
+}
+
+textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.8rem, 1fr));
+  gap: 0.2rem 0.8rem;
+  margin-top: 0.4rem;
+}
+
+.text-block {
+  margin-top: 0.8rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--frame);
+}
+
+.color-field input[type="color"] {
+  width: 100%;
+  height: 2.4rem;
+  padding: 0.15rem;
+  background: var(--background);
+  border: 1px solid var(--frame);
+  border-radius: 0.55rem;
+}
+
+.row-actions,
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.toolbar {
+  position: sticky;
+  bottom: 0.6rem;
+  padding: 0.7rem 0;
+  background: color-mix(in srgb, var(--background) 92%, transparent);
+}
+
+button,
+.file-button {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--frame);
+  border-radius: 0.55rem;
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+}
+
+.file-button {
+  position: relative;
+  display: inline-block;
+}
+
+.file-button input {
+  position: absolute;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+}
+
+button.primary {
+  background: var(--accent);
+  color: var(--on-accent, #1c140e);
+  border-color: var(--accent);
+}
+
+button.danger {
+  color: #e7b2a4;
+  border-color: #8a4a3c;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.status {
+  color: var(--muted);
+  min-height: 1.4rem;
+}
+
+.status.is-error {
+  color: #e7b2a4;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.8rem, 1fr));
+  gap: 0.2rem 0.8rem;
+}
+
+.color-grid label {
+  margin-top: 0.45rem;
+}
+
+.job-card {
+  border: 1px solid color-mix(in srgb, var(--job-fade, var(--accent)) 46%, var(--job-bg, var(--background)));
+  border-radius: 0.9rem;
+  padding: 1rem;
+  margin-bottom: 0.9rem;
+  background: var(--job-bg, var(--background));
+  color: var(--job-text, var(--text));
+}
+
+.uploads .banner,
+.uploads .sash,
+.uploads .stamp {
+  width: 100%;
+  margin: 0;
+  border: 1px solid var(--frame);
+  border-radius: 0.7rem;
+  padding: 0.4rem;
+  background: color-mix(in srgb, var(--job-bg, var(--background)) 80%, black);
+}
+
+.uploads .banner::after {
+  display: none;
+}
+
+.uploads .banner img,
+.uploads .sash img,
+.uploads .stamp img {
+  width: 100%;
+  height: auto;
+  max-height: 12rem;
+  object-fit: contain;
+  border-radius: 0.4rem;
+}
+
+.bgm-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.35rem 0;
+}
+
+.bgm-preview audio {
+  width: 100%;
+}
+
+.uploads {
+  display: grid;
+  grid-template-columns: 1.35fr 0.95fr 0.7fr;
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+.uploads > :last-child {
+  grid-column: 1 / -1;
+}
+
+.uploads .banner,
+.uploads .sash,
+.uploads .stamp {
+  margin: 0;
+  width: 100%;
+}
+
+.extra-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+}
+
+.extra-item figure {
+  margin: 0 0 0.4rem;
+  border: 1px solid var(--frame);
+  border-radius: 0.5rem;
+  background: var(--background);
+  padding: 0.35rem;
+}
+
+.extra-item input[type="range"] {
+  width: 100%;
+  margin: 0.15rem 0 0.45rem;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 720px) {
+  .uploads {
+    grid-template-columns: 1fr;
+  }
+
+  .uploads .stamp {
+    width: 8rem;
+  }
+}
