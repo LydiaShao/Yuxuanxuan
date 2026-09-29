@@ -1,7 +1,7 @@
 "use strict";
 
 const SITE_NAME = "Yuxuanxuan";
-const FALLBACK_JOB = "#a68462";
+const FALLBACK_JOB = "#7dceb8";
 
 function h(tag, props, ...children) {
   const node = document.createElement(tag);

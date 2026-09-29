@@ -37,8 +37,8 @@ TYPES = {
     ".webp": "image/webp",
     ".gif": "image/gif",
 }
-DEFAULT_THEME = {"color": "#c9a27a"}
-DEFAULT_JOB_COLOR = "#a68462"
+DEFAULT_THEME = {"color": "#7dceb8"}
+DEFAULT_JOB_COLOR = "#7dceb8"
 MAX_IMAGES = 40
 
 FAILURES = {}

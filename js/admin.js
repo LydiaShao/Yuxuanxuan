@@ -1,7 +1,7 @@
 "use strict";
 
-const FALLBACK_THEME = "#c9a27a";
-const FALLBACK_JOB = "#a68462";
+const FALLBACK_THEME = "#7dceb8";
+const FALLBACK_JOB = "#7dceb8";
 
 const state = {
   mode: "loading",

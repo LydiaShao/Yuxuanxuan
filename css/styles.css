@@ -1,6 +1,6 @@
 :root {
-  --theme: #c9a27a;
-  --job: #a68462;
+  --theme: #7dceb8;
+  --job: #7dceb8;
   --background: color-mix(in srgb, var(--theme) 42%, #120e0c);
   --surface: color-mix(in srgb, var(--theme) 24%, #1c1612);
   --text: color-mix(in srgb, var(--theme) 12%, #f7f2ec);
