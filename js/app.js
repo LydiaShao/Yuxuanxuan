@@ -204,7 +204,7 @@ function bannerDisplay(src) {
 
 function galleryDisplay(src, cssWidth) {
   const dpr = Math.max(1, window.devicePixelRatio || 1);
-  const css = Math.max(1, cssWidth || window.innerWidth * 0.46);
+  const css = Math.max(1, cssWidth || window.innerWidth * 0.5);
   const softer = Math.max(css, css * dpr * 0.72);
   return displayPath(src, softer, 74);
 }
@@ -322,7 +322,7 @@ function wrapPic(job, item) {
   const stage = Math.min(1120, window.innerWidth * 0.92);
   const figure = plate(`wrap-pic is-${side}`, item.src, `${job.name} picture`, {
     kind: "gallery",
-    display: galleryDisplay(item.src, stage * ((Number.isFinite(width) && width > 0 ? width : 46) / 100)),
+    display: galleryDisplay(item.src, stage * ((Number.isFinite(width) && width > 0 ? width : 50) / 100)),
     replace: () => replaceBodyImage(job, item),
     remove: () => removeBody(job, item),
   });

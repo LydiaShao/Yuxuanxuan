@@ -463,21 +463,19 @@ h1 {
 .wrap-pic {
   position: relative;
   z-index: 1;
-  width: 46%;
+  width: calc(50% - 0.5rem);
   max-width: 100%;
-  margin: 0.25rem 1.15rem 0.85rem 0;
+  margin: 0.15rem 0.35rem 0.4rem 0;
   shape-outside: margin-box;
 }
 
 .wrap-pic.is-left {
   float: left;
-  clear: left;
 }
 
 .wrap-pic.is-right {
   float: right;
-  clear: right;
-  margin: 0.25rem 0 0.85rem 1.15rem;
+  margin: 0.15rem 0 0.4rem 0.35rem;
 }
 
 .wrap-pic img {
