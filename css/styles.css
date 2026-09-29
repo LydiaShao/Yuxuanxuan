@@ -839,6 +839,30 @@ body.is-admin .wrap-pic.is-dragging {
   cursor: pointer;
 }
 
+.bgm-toggle {
+  position: fixed;
+  right: var(--edge);
+  bottom: 1.15rem;
+  z-index: 32;
+  width: 2.4rem;
+  height: 2.4rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--bar-text) 32%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bar) 86%, transparent);
+  color: var(--bar-text);
+  font: inherit;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.bgm-toggle.is-muted {
+  opacity: 0.55;
+}
+
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,

@@ -180,6 +180,17 @@ button:disabled {
   border-radius: 0.4rem;
 }
 
+.bgm-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.35rem 0;
+}
+
+.bgm-preview audio {
+  width: 100%;
+}
+
 .uploads {
   display: grid;
   grid-template-columns: 1.6fr 0.7fr;

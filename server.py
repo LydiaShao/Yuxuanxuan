@@ -43,6 +43,11 @@ TYPES = {
     ".jpeg": "image/jpeg",
     ".webp": "image/webp",
     ".gif": "image/gif",
+    ".mp3": "audio/mpeg",
+    ".ogg": "audio/ogg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".flac": "audio/flac",
 }
 DEFAULT_JOB_COLORS = {
     "background": "#1e3a34",
@@ -65,6 +70,7 @@ MAX_IMAGES = 40
 MAX_BLOCKS = 16
 MAX_SPRITES = 12
 MAX_JOBS = 40
+MAX_UPLOAD = 24 * 1024 * 1024
 
 FAILURES = {}
 SESSIONS = None
@@ -563,6 +569,7 @@ def clean_job(job, strict=True):
         "blocks": blocks,
         "banner": clean_image(job.get("banner"), strict),
         "portrait": clean_image(job.get("portrait"), strict),
+        "bgm": clean_image(job.get("bgm"), strict),
         "images": images,
         "sprites": clean_sprites(job.get("sprites"), strict),
     }
@@ -709,9 +716,27 @@ def sniff_image(blob):
         return ".png"
     if blob.startswith((b"GIF87a", b"GIF89a")):
         return ".gif"
-    if len(blob) > 12 and blob.startswith(b"RIFF") and blob[8:12] == b"WEBP":
+    if len(blob) >= 12 and blob.startswith(b"RIFF") and blob[8:12] == b"WEBP":
         return ".webp"
     return None
+
+
+def sniff_audio(blob):
+    if blob.startswith(b"ID3") or (len(blob) >= 2 and blob[0] == 0xFF and blob[1] & 0xE0 == 0xE0):
+        return ".mp3"
+    if blob.startswith(b"OggS"):
+        return ".ogg"
+    if blob.startswith(b"fLaC"):
+        return ".flac"
+    if len(blob) >= 12 and blob.startswith(b"RIFF") and blob[8:12] == b"WAVE":
+        return ".wav"
+    if len(blob) >= 12 and blob[4:8] == b"ftyp":
+        return ".m4a"
+    return None
+
+
+def sniff_media(blob):
+    return sniff_image(blob) or sniff_audio(blob)
 
 
 def boundary_token(content_type):
@@ -781,9 +806,9 @@ def save_multipart_image(reader, boundary, dest):
                     head.extend(piece[: 16 - len(head)])
                 handle.write(piece)
                 buf = buf[-keep:]
-            if len(head) >= 16 and sniff_image(bytes(head)) is None:
+            if len(head) >= 16 and sniff_media(bytes(head)) is None:
                 reader.drain()
-                raise ValueError("只接受 JPG、PNG、WEBP 或 GIF")
+                raise ValueError("只接受 JPG、PNG、WEBP、GIF 或 MP3、OGG、WAV、FLAC、M4A")
             chunk = reader.read(256 * 1024)
             if not chunk:
                 raise ValueError("上传不完整")
@@ -1064,7 +1089,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         boundary = boundary_token(self.headers.get("Content-Type", ""))
         if boundary is None:
-            self.send_json(400, {"error": "请用表单上传图片"})
+            self.send_json(400, {"error": "请用表单上传"})
             return
         try:
             length = int(self.headers.get("Content-Length", ""))
@@ -1074,14 +1099,17 @@ class Handler(BaseHTTPRequestHandler):
         if length < 0:
             self.send_json(400, {"error": "缺少内容长度"})
             return
+        if length > MAX_UPLOAD:
+            self.send_json(413, {"error": "文件太大，控制在 24MB 以内"})
+            return
         UPLOADS.mkdir(parents=True, exist_ok=True)
         temporary = UPLOADS / f".{secrets.token_hex(12)}.part"
         try:
             save_multipart_image(BudgetReader(self.rfile, length), boundary, temporary)
             with temporary.open("rb") as handle:
-                extension = sniff_image(handle.read(16))
+                extension = sniff_media(handle.read(16))
             if extension is None or temporary.stat().st_size == 0:
-                raise ValueError("只接受 JPG、PNG、WEBP 或 GIF")
+                raise ValueError("只接受 JPG、PNG、WEBP、GIF 或 MP3、OGG、WAV、FLAC、M4A")
             name = f"{secrets.token_hex(12)}{extension}"
             temporary.replace(UPLOADS / name)
         except ValueError as error:
@@ -1090,7 +1118,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         except OSError:
             temporary.unlink(missing_ok=True)
-            self.send_json(500, {"error": "图片没有保存成功"})
+            self.send_json(500, {"error": "文件没有保存成功"})
             return
         self.send_json(200, {"path": f"images/uploads/{name}"})
 

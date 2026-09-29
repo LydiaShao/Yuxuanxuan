@@ -191,7 +191,8 @@ function jobCard(job, index) {
       "div",
       { class: "uploads" },
       uploadSlot(job, "banner", "横版插图", "banner"),
-      uploadSlot(job, "portrait", "方邮票头像", "stamp")
+      uploadSlot(job, "portrait", "方邮票头像", "stamp"),
+      bgmSlot(job)
     ),
     h("p", { class: "hint" }, "正文和图片在职业页面上改。管理员打开那一页后可以直接写；右键加字、加图片、换图或去掉。图片可以拖动，角落可以放大缩小。"),
     spriteList(job),
@@ -258,6 +259,30 @@ function uploadSlot(job, key, label, frameClass) {
   return h("div", {}, h("label", {}, label), h("figure", { class: `${frameClass}${job[key] ? "" : " is-empty"}` }, preview), input);
 }
 
+function bgmSlot(job) {
+  const input = h("input", {
+    type: "file",
+    accept: "audio/mpeg,audio/ogg,audio/wav,audio/flac,audio/mp4,audio/x-m4a,.mp3,.ogg,.wav,.flac,.m4a",
+    onchange: (event) => upload(job, "bgm", event.target.files[0], event.target),
+  });
+  const preview = job.bgm
+    ? h(
+        "div",
+        { class: "bgm-preview" },
+        h("audio", { src: job.bgm, controls: "true" }),
+        h("button", { type: "button", onclick: () => { job.bgm = ""; state.dirty = true; paint(); } }, "去掉")
+      )
+    : h("span", {}, "未上传");
+  return h(
+    "div",
+    {},
+    h("label", {}, "BGM"),
+    h("p", { class: "hint" }, "每个职业一首。MP3 / OGG / WAV / FLAC / M4A，24MB 以内。访客第一次点页面后才会出声。"),
+    preview,
+    input
+  );
+}
+
 function spriteList(job) {
   const input = h("input", {
     type: "file",
@@ -309,7 +334,7 @@ async function upload(job, key, file, input) {
   try {
     job[key] = await sendFile(file);
     state.dirty = true;
-    state.message = "图片已按原文件保存，记得点保存。";
+    state.message = key === "bgm" ? "音频已保存，记得点保存。" : "图片已按原文件保存，记得点保存。";
   } catch (error) {
     state.error = error.message;
   }
@@ -385,6 +410,7 @@ function addJob() {
     blocks: [],
     banner: "",
     portrait: "",
+    bgm: "",
     images: [],
     sprites: [],
   });
@@ -459,6 +485,7 @@ function payload() {
         })),
         banner: job.banner || "",
         portrait: job.portrait || "",
+        bgm: job.bgm || "",
         images: body.filter((item) => item.type === "image").map((item) => item.src),
         sprites: (job.sprites || []).map((sprite) => {
           const size = Number(sprite.size);

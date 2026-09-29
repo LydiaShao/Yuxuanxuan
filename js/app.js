@@ -213,6 +213,7 @@ function payload() {
         blocks: job.blocks,
         banner: job.banner || "",
         portrait: job.portrait || "",
+        bgm: job.bgm || "",
         images: job.images,
         sprites: (job.sprites || []).map(spriteFields),
       };
@@ -1370,6 +1371,103 @@ function renderMissing() {
   );
 }
 
+const bgmState = {
+  audio: null,
+  src: "",
+  unlocked: false,
+};
+
+function bgmMuted() {
+  try {
+    return localStorage.getItem("yx-bgm-muted") === "1";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function setBgmMuted(value) {
+  try {
+    localStorage.setItem("yx-bgm-muted", value ? "1" : "0");
+  } catch (_error) {
+    /* private mode */
+  }
+}
+
+function bgmAudio() {
+  if (bgmState.audio) return bgmState.audio;
+  const audio = new Audio();
+  audio.loop = true;
+  audio.preload = "auto";
+  audio.volume = 0.42;
+  bgmState.audio = audio;
+  return audio;
+}
+
+function paintBgm(src) {
+  let button = document.getElementById("bgm-toggle");
+  if (!src) {
+    button?.remove();
+    return;
+  }
+  if (!button) {
+    button = h("button", {
+      id: "bgm-toggle",
+      type: "button",
+      class: "bgm-toggle",
+      onclick: () => {
+        const next = !bgmMuted();
+        setBgmMuted(next);
+        bgmAudio().muted = next;
+        bgmState.unlocked = true;
+        playBgm();
+        paintBgm(bgmState.src);
+      },
+    });
+    document.body.append(button);
+  }
+  const muted = bgmMuted();
+  button.classList.toggle("is-muted", muted);
+  button.setAttribute("aria-label", muted ? "Unmute music" : "Mute music");
+  button.textContent = muted ? "静" : "音";
+}
+
+function playBgm() {
+  const audio = bgmAudio();
+  audio.muted = bgmMuted();
+  if (!audio.getAttribute("src")) return;
+  const attempt = audio.play();
+  if (attempt && attempt.catch) {
+    attempt.catch(() => {
+      bgmState.unlocked = false;
+    });
+  }
+}
+
+function unlockBgm() {
+  if (bgmState.unlocked) return;
+  bgmState.unlocked = true;
+  playBgm();
+}
+
+function syncBgm(job) {
+  const src = job && job.bgm ? job.bgm : "";
+  const audio = bgmAudio();
+  if (!src) {
+    audio.pause();
+    audio.removeAttribute("src");
+    bgmState.src = "";
+    paintBgm("");
+    return;
+  }
+  if (bgmState.src !== src) {
+    bgmState.src = src;
+    audio.src = src;
+  }
+  paintBgm(src);
+  audio.muted = bgmMuted();
+  playBgm();
+}
+
 function paint() {
   const scroll = window.scrollY;
   closeMenu();
@@ -1383,16 +1481,19 @@ function paint() {
     main.replaceChildren(renderEmpty());
     renderSprites(null);
     document.title = SITE_NAME;
+    syncBgm(null);
   } else if (explicit && !job) {
     renderNav(state.jobs, "");
     main.replaceChildren(renderMissing());
     renderSprites(null);
     document.title = `Missing · ${SITE_NAME}`;
+    syncBgm(null);
   } else {
     renderNav(state.jobs, job.id);
     main.replaceChildren(renderJob(job));
     renderSprites(job);
     document.title = `${job.name} · ${SITE_NAME}`;
+    syncBgm(job);
   }
   window.scrollTo(0, scroll);
   fitOrnament();
@@ -1403,6 +1504,7 @@ function paint() {
 }
 
 document.addEventListener("pointerdown", (event) => {
+  unlockBgm();
   if (!event.target.closest(".image-menu")) closeMenu();
   if (event.target.closest(".fx-catalog, .spin, .image-menu")) return;
   const pic = event.target.closest(".wrap-pic");
@@ -1419,6 +1521,7 @@ document.addEventListener("contextmenu", (event) => {
     { label: "Add picture", action: () => addPictures(job) },
   ]);
 });
+document.addEventListener("keydown", unlockBgm);
 window.addEventListener("hashchange", () => paint());
 let displayTimer = 0;
 window.addEventListener("resize", () => {
