@@ -210,14 +210,41 @@ function keepSprites(current, incoming) {
   return sprites;
 }
 
+function keepBody(current, incoming) {
+  const prev = Array.isArray(current) ? current.slice() : [];
+  const used = new Set();
+  return (incoming || []).map((fresh) => {
+    let hit = -1;
+    for (let index = 0; index < prev.length; index += 1) {
+      if (used.has(index)) continue;
+      const cur = prev[index];
+      if (!cur || cur.type !== fresh.type) continue;
+      if (fresh.type === "image" && cur.src === fresh.src) {
+        hit = index;
+        break;
+      }
+      if (fresh.type !== "image" && (cur.text || "") === (fresh.text || "")) {
+        hit = index;
+        break;
+      }
+    }
+    if (hit < 0) return fresh;
+    used.add(hit);
+    Object.assign(prev[hit], fresh);
+    return prev[hit];
+  });
+}
+
 function adoptSaved(freshJobs) {
   const prev = state.jobs;
   state.jobs = (freshJobs || []).map((fresh) => {
     const cur = prev.find((item) => item.id === fresh.id) || prev.find((item) => item.name === fresh.name);
     if (!cur) return fresh;
     const sprites = keepSprites(cur.sprites, fresh.sprites);
+    const body = keepBody(cur.body, fresh.body);
     Object.assign(cur, fresh);
     cur.sprites = sprites;
+    cur.body = body;
     return cur;
   });
 }
@@ -586,9 +613,6 @@ function bindFreeDrag(node, job, item, grab) {
     node.style.left = `${drag.left + dx - flow.left}px`;
     node.style.top = `${drag.top + dy - flow.top}px`;
     remember();
-    if (!state.admin) return;
-    window.clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(saveNow, 160);
   });
   const finish = () => {
     if (!drag) return;
