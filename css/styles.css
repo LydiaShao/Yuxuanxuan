@@ -314,6 +314,46 @@ main#content {
   pointer-events: auto;
 }
 
+.job > .sash .sash-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 0.48rem;
+  background: var(--bar);
+  pointer-events: none;
+}
+
+.job.side-left > .sash .sash-edge {
+  right: 0;
+}
+
+.job.side-right > .sash .sash-edge {
+  left: 0;
+}
+
+.job > .sash .sash-clip::after {
+  content: "";
+  position: absolute;
+  top: 7%;
+  bottom: 7%;
+  z-index: 1;
+  width: 0.42rem;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: var(--bar-text);
+  border-width: 0 0.11rem;
+  pointer-events: none;
+}
+
+.job.side-left > .sash .sash-clip::after {
+  right: 0.82rem;
+}
+
+.job.side-right > .sash .sash-clip::after {
+  left: 0.82rem;
+}
+
 .stage {
   position: relative;
   z-index: 1;

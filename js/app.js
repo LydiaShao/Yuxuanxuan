@@ -241,7 +241,9 @@ function keepSprites(current, incoming) {
   return sprites;
 }
 
+const PLACE_KEYS = ["w", "x", "y"];
 const PICTURE_LOOK_KEYS = ["rotate", "flipX", "flipY", "round", "dissolve", "shadow", "ghost", "ghostColor", "shadowColor"];
+const BODY_KEEP_KEYS = PLACE_KEYS.concat(PICTURE_LOOK_KEYS);
 
 function keepBody(current, incoming) {
   const prev = Array.isArray(current) ? current.slice() : [];
@@ -264,13 +266,11 @@ function keepBody(current, incoming) {
     if (hit < 0) return fresh;
     used.add(hit);
     const kept = prev[hit];
-    const look = {};
-    if (fresh.type === "image") {
-      PICTURE_LOOK_KEYS.forEach((key) => {
-        if (!(key in fresh) && key in kept) look[key] = kept[key];
-      });
-    }
-    Object.assign(kept, fresh, look);
+    const keep = {};
+    BODY_KEEP_KEYS.forEach((key) => {
+      if (!(key in fresh) && key in kept) keep[key] = kept[key];
+    });
+    Object.assign(kept, fresh, keep);
     return kept;
   });
 }
@@ -465,7 +465,7 @@ function renderJob(job) {
     const image = sash.querySelector("img");
     const clip = h("div", { class: "sash-clip" });
     if (image) clip.append(image);
-    sash.append(clip);
+    sash.append(clip, h("div", { class: "sash-edge", "aria-hidden": "true" }));
   }
   const portrait = plate("portrait", job.portrait, `${job.name} portrait`, {
     replace: () => replaceSlot(job, "portrait"),
@@ -573,24 +573,28 @@ function ensureFreePlace(job) {
   });
 }
 
-function applyFreePlace(node, item, flow) {
+function applyFreePlace(node, item, flow, commit) {
   const width = Number(item.w);
   const fallback = item.type === "image" ? 46 : 56;
   const shown = Number.isFinite(width) && width > 0 ? Math.min(100, Math.max(8, width)) : fallback;
   node.style.width = `${shown}%`;
   const column = flow.clientWidth || 1;
-  const placed = clampInFlow(
-    node,
-    item,
-    flow,
-    ((Number(item.x) || 0) / 100) * column,
-    ((Number(item.y) || 0) / 100) * column
-  );
-  item.w = shown;
-  item.x = Math.round((placed.left / column) * 10000) / 100;
-  item.y = Math.round((placed.top / column) * 10000) / 100;
-  node.style.left = `${item.x}%`;
-  node.style.top = `${placed.top}px`;
+  let left = ((Number(item.x) || 0) / 100) * column;
+  let top = ((Number(item.y) || 0) / 100) * column;
+  if (commit) {
+    const placed = clampInFlow(node, item, flow, left, top);
+    item.w = shown;
+    item.x = Math.round((placed.left / column) * 10000) / 100;
+    item.y = Math.round((placed.top / column) * 10000) / 100;
+    left = placed.left;
+    top = placed.top;
+  } else {
+    const box = Math.min(column, node.offsetWidth || (column * (shown / 100)));
+    left = Math.min(Math.max(0, left), Math.max(0, column - box));
+    top = Math.max(0, top);
+  }
+  node.style.left = `${(left / column) * 100}%`;
+  node.style.top = `${top}px`;
   if (item.type === "image") applyPicFx(node, item);
 }
 
@@ -994,7 +998,7 @@ function bindFreeDrag(node, job, item, grab) {
     if (!moved) return;
     remember();
     const flow = node.parentElement;
-    if (flow) applyFreePlace(node, item, flow);
+    if (flow) applyFreePlace(node, item, flow, true);
     pinStory();
     saveNow();
   };
@@ -1035,7 +1039,7 @@ function bindWrapResize(handle, figure, job, item) {
     item.w = percent;
     if ((Number(item.x) || 0) + item.w > 100) item.x = Math.max(0, Math.round((100 - item.w) * 100) / 100);
     const flow = figure.parentElement;
-    if (flow) applyFreePlace(figure, item, flow);
+    if (flow) applyFreePlace(figure, item, flow, true);
     if (item.type === "image") refreshPictures();
     pinStory();
     persist().catch((error) => window.alert(error.message));
