@@ -561,6 +561,17 @@ body.is-admin .panel-text.is-empty::before {
   width: 46%;
   max-width: none;
   margin: 0;
+  overflow: visible;
+}
+
+.wrap-pic-stage {
+  display: block;
+  transform-origin: center center;
+}
+
+.wrap-pic-clip {
+  display: block;
+  overflow: hidden;
 }
 
 .wrap-pic img {
@@ -574,6 +585,31 @@ body.is-admin .panel-text.is-empty::before {
 body.is-admin .wrap-pic {
   cursor: grab;
   touch-action: none;
+}
+
+body.is-admin .wrap-pic .spin {
+  position: absolute;
+  left: 50%;
+  top: -1.4rem;
+  z-index: 3;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-left: -0.48rem;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: grab;
+  box-shadow: 0 0.08rem 0.2rem rgba(20, 16, 14, 0.35);
+}
+
+body.is-admin .wrap-pic .spin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: 0.55rem;
+  background: var(--text);
+  transform: translateX(-50%);
 }
 
 body.is-admin .resize {
@@ -717,6 +753,79 @@ body.is-admin .wrap-pic.is-dragging {
 .image-menu input[type="color"] {
   width: 1.6rem;
   height: 1.2rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.fx-catalog {
+  position: fixed;
+  z-index: 9;
+  box-sizing: border-box;
+  width: min(18.5rem, calc(100vw - 1rem));
+  padding: 0.7rem 0.75rem 0.8rem;
+  background: color-mix(in srgb, var(--bar) 94%, transparent);
+  color: var(--bar-text);
+  border: 1px solid color-mix(in srgb, var(--bar-text) 28%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.fx-title {
+  margin: 0 0 0.45rem;
+  font-family: var(--ui);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fx-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+  margin: 0 0 0.65rem;
+}
+
+.fx-presets button,
+.fx-pair button {
+  margin: 0;
+  padding: 0.22rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--bar-text) 28%, transparent);
+  border-radius: 0.28rem;
+  background: color-mix(in srgb, var(--bar-text) 8%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.fx-pair button.is-on {
+  background: color-mix(in srgb, var(--bar-text) 22%, transparent);
+}
+
+.fx-row {
+  display: grid;
+  grid-template-columns: 4.6rem 1fr;
+  gap: 0.45rem;
+  align-items: center;
+  margin: 0.28rem 0;
+  font-size: 0.86rem;
+}
+
+.fx-pair {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.fx-catalog input[type="range"] {
+  width: 100%;
+  accent-color: var(--bar-text);
+}
+
+.fx-catalog input[type="color"] {
+  width: 1.5rem;
+  height: 1.15rem;
   padding: 0;
   border: 0;
   background: transparent;

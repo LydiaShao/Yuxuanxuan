@@ -435,7 +435,15 @@ function payload() {
         image.x = Math.round(Math.min(100, Math.max(0, Number(item.x) || 0)) * 100) / 100;
         image.y = Math.round(Math.min(800, Math.max(0, Number(item.y) || 0)) * 100) / 100;
         const rotate = ((Number(item.rotate) || 0) % 360 + 360) % 360;
-        if (rotate) image.rotate = rotate;
+        if (rotate) image.rotate = Math.round(rotate * 10) / 10;
+        if (item.flipX) image.flipX = true;
+        if (item.flipY) image.flipY = true;
+        [["round", 50], ["dissolve", 48], ["shadow", 40], ["ghost", 40]].forEach(([key, hi]) => {
+          const amount = Number(item[key]);
+          if (Number.isFinite(amount) && amount > 0) image[key] = Math.round(Math.min(hi, amount) * 10) / 10;
+        });
+        if (image.ghost && cssHex(item.ghostColor, "")) image.ghostColor = cssHex(item.ghostColor, "");
+        if (image.shadow && cssHex(item.shadowColor, "")) image.shadowColor = cssHex(item.shadowColor, "");
         return image;
       });
       return {

@@ -189,6 +189,53 @@ def clean_rotate(value):
     return min((0, 90, 180, 270), key=lambda item: min(abs(item - number), 360 - abs(item - number)))
 
 
+def clean_angle(value):
+    if value in (None, ""):
+        return 0.0
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if number != number:
+        return 0.0
+    number %= 360.0
+    if number < 0:
+        number += 360.0
+    if number < 0.05 or number > 359.95:
+        return 0.0
+    return round(number, 1)
+
+
+def clean_flag(value):
+    if value is True:
+        return True
+    text = str(value or "").strip().lower()
+    return text in ("1", "true", "yes", "on")
+
+
+def stamp_picture_look(image, item):
+    angle = clean_angle(item.get("rotate"))
+    if angle:
+        image["rotate"] = angle
+    if clean_flag(item.get("flipX")):
+        image["flipX"] = True
+    if clean_flag(item.get("flipY")):
+        image["flipY"] = True
+    for key, hi in (("round", 50.0), ("dissolve", 48.0), ("shadow", 40.0), ("ghost", 40.0)):
+        amount = clean_spot(item.get(key), 0.0, hi)
+        if amount:
+            image[key] = amount
+    if image.get("ghost"):
+        ghost_color = str(item.get("ghostColor") or "").strip()
+        if HEX.match(ghost_color):
+            image["ghostColor"] = ghost_color.lower()
+    if image.get("shadow"):
+        shadow_color = str(item.get("shadowColor") or "").strip()
+        if HEX.match(shadow_color):
+            image["shadowColor"] = shadow_color.lower()
+    return image
+
+
 def clean_percent(value):
     try:
         number = float(value)
@@ -421,9 +468,7 @@ def parse_body(raw, strict):
                 image["x"] = x
             if y is not None:
                 image["y"] = y
-            rotate = clean_rotate(item.get("rotate"))
-            if rotate:
-                image["rotate"] = rotate
+            stamp_picture_look(image, item)
             body.append(image)
             continue
         if kind not in ("text", ""):

@@ -63,6 +63,11 @@ function closeMenu() {
   document.querySelector(".image-menu")?.remove();
 }
 
+function closeFx() {
+  document.querySelector(".fx-catalog")?.remove();
+  state.fxItem = null;
+}
+
 function showMenu(x, y, items) {
   closeMenu();
   const menu = h(
@@ -351,7 +356,15 @@ function imagePayload(item) {
   image.x = Math.round(Math.min(100, Math.max(0, Number(item.x) || 0)) * 100) / 100;
   image.y = Math.round(Math.min(800, Math.max(0, Number(item.y) || 0)) * 100) / 100;
   const rotate = ((Number(item.rotate) || 0) % 360 + 360) % 360;
-  if (rotate) image.rotate = rotate;
+  if (rotate) image.rotate = Math.round(rotate * 10) / 10;
+  if (item.flipX) image.flipX = true;
+  if (item.flipY) image.flipY = true;
+  [["round", 50], ["dissolve", 48], ["shadow", 40], ["ghost", 40]].forEach(([key, hi]) => {
+    const amount = Number(item[key]);
+    if (Number.isFinite(amount) && amount > 0) image[key] = Math.round(Math.min(hi, amount) * 10) / 10;
+  });
+  if (image.ghost && cssHex(item.ghostColor, "")) image.ghostColor = cssHex(item.ghostColor, "");
+  if (image.shadow && cssHex(item.shadowColor, "")) image.shadowColor = cssHex(item.shadowColor, "");
   return image;
 }
 
@@ -378,6 +391,7 @@ function bindMenu(node, original, extra) {
     if (original) items.push({ label: "View original", href: original });
     if (state.admin && extra.replace) items.push({ label: "Replace", action: extra.replace });
     if (state.admin && extra.remove) items.push({ label: "Remove", action: extra.remove });
+    if (state.admin && extra.effects) items.push({ label: "特效", action: extra.effects });
     if (extra.turn) items.push({ label: "Turn 90°", action: extra.turn });
     if (state.admin && extra.colors) {
       items.push({
@@ -527,10 +541,7 @@ function applyFreePlace(node, item, flow) {
   node.style.left = `${Math.min(100, Math.max(0, Number(item.x) || 0))}%`;
   const column = flow.clientWidth || 1;
   node.style.top = `${(Math.min(800, Math.max(0, Number(item.y) || 0)) / 100) * column}px`;
-  if (item.type === "image") {
-    const image = node.querySelector("img");
-    if (image) image.style.transform = `rotate(${Number(item.rotate) || 0}deg)`;
-  }
+  if (item.type === "image") applyPicFx(node, item);
 }
 
 function pinStory() {
@@ -552,40 +563,285 @@ function layoutFreePics() {
   pinStory();
 }
 
+function fxAmount(value, hi) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  return Math.min(hi, amount);
+}
+
+function hexAlpha(hex, alpha, fallback) {
+  const clean = cssHex(hex, fallback || "#14100e").slice(1);
+  const n = parseInt(clean, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
+function picTransform(item) {
+  const rotate = Number(item.rotate) || 0;
+  const sx = item.flipX ? -1 : 1;
+  const sy = item.flipY ? -1 : 1;
+  return `rotate(${rotate}deg) scale(${sx}, ${sy})`;
+}
+
+function applyPicFx(node, item) {
+  const stage = node.querySelector(".wrap-pic-stage");
+  const clip = node.querySelector(".wrap-pic-clip");
+  if (!stage || !clip) return;
+  const round = fxAmount(item.round, 50);
+  const dissolve = fxAmount(item.dissolve, 48);
+  clip.style.borderRadius = round ? `${round}%` : "";
+  if (dissolve) {
+    const edge = `${dissolve}%`;
+    const across = `linear-gradient(to right, transparent 0, #000 ${edge}, #000 calc(100% - ${edge}), transparent 100%)`;
+    const down = `linear-gradient(to bottom, transparent 0, #000 ${edge}, #000 calc(100% - ${edge}), transparent 100%)`;
+    clip.style.webkitMaskImage = `${across}, ${down}`;
+    clip.style.maskImage = `${across}, ${down}`;
+    clip.style.webkitMaskComposite = "source-in";
+    clip.style.maskComposite = "intersect";
+    clip.style.webkitMaskRepeat = "no-repeat";
+    clip.style.maskRepeat = "no-repeat";
+  } else {
+    clip.style.webkitMaskImage = "";
+    clip.style.maskImage = "";
+    clip.style.webkitMaskComposite = "";
+    clip.style.maskComposite = "";
+  }
+  const filters = [];
+  const ghost = fxAmount(item.ghost, 40);
+  if (ghost) {
+    const px = Math.max(2, Math.round(ghost * 0.4));
+    filters.push(`drop-shadow(${px}px ${px}px 0 ${cssHex(item.ghostColor, "#1a1018")})`);
+  }
+  const shadow = fxAmount(item.shadow, 40);
+  if (shadow) {
+    const y = Math.max(2, Math.round(shadow * 0.28));
+    const blur = Math.max(4, Math.round(shadow * 0.55));
+    filters.push(`drop-shadow(0 ${y}px ${blur}px ${hexAlpha(item.shadowColor, 0.42, "#14100e")})`);
+  }
+  stage.style.filter = filters.join(" ");
+  stage.style.transform = picTransform(item);
+}
+
+function livePicFx(item) {
+  document.querySelectorAll(".wrap-pic").forEach((node) => {
+    if (node._item === item) applyPicFx(node, item);
+  });
+  pinStory();
+}
+
+const FX_PRESETS = [
+  { label: "无", round: 0, dissolve: 0, shadow: 0, ghost: 0 },
+  { label: "圆角", round: 20, dissolve: 0, shadow: 0, ghost: 0 },
+  { label: "边缘溶解", round: 0, dissolve: 24, shadow: 0, ghost: 0 },
+  { label: "阴影", round: 0, dissolve: 0, shadow: 24, ghost: 0 },
+  { label: "实色阴影", round: 0, dissolve: 0, shadow: 0, ghost: 20 },
+  { label: "贴纸", round: 16, dissolve: 0, shadow: 18, ghost: 0 },
+];
+
+function fxRow(label, control) {
+  return h("label", { class: "fx-row" }, h("span", {}, label), control);
+}
+
+function fxRange(item, key, hi, extra) {
+  const input = h("input", {
+    type: "range",
+    min: "0",
+    max: String(hi),
+    step: "1",
+    value: String(Math.round(fxAmount(item[key], hi))),
+    oninput: (event) => {
+      item[key] = Number(event.currentTarget.value);
+      if (extra) extra();
+      livePicFx(item);
+    },
+    onchange: () => persist().catch((error) => window.alert(error.message)),
+  });
+  input.dataset.fx = key;
+  return input;
+}
+
+function showFxCatalog(anchor, item) {
+  closeMenu();
+  closeFx();
+  state.fxItem = item;
+  let catalog = null;
+  const rotate = h("input", {
+    type: "range",
+    min: "0",
+    max: "359",
+    step: "1",
+    value: String(Math.round(((Number(item.rotate) || 0) % 360 + 360) % 360)),
+    oninput: (event) => {
+      item.rotate = Number(event.currentTarget.value);
+      if (catalog) catalog.querySelector("[data-fx-deg]").textContent = `${Math.round(item.rotate)}°`;
+      livePicFx(item);
+    },
+    onchange: () => persist().catch((error) => window.alert(error.message)),
+  });
+  const deg = h("span", { "data-fx-deg": "1" }, `${Math.round(((Number(item.rotate) || 0) % 360 + 360) % 360)}°`);
+  const ghostColor = h("input", {
+    type: "color",
+    value: cssHex(item.ghostColor, "#1a1018"),
+    oninput: (event) => {
+      item.ghostColor = event.currentTarget.value;
+      livePicFx(item);
+    },
+    onchange: () => persist().catch((error) => window.alert(error.message)),
+  });
+  const shadowColor = h("input", {
+    type: "color",
+    value: cssHex(item.shadowColor, "#14100e"),
+    oninput: (event) => {
+      item.shadowColor = event.currentTarget.value;
+      livePicFx(item);
+    },
+    onchange: () => persist().catch((error) => window.alert(error.message)),
+  });
+  catalog = h(
+    "div",
+    { class: "fx-catalog", role: "dialog", "aria-label": "图片特效" },
+    h("p", { class: "fx-title" }, "图片特效"),
+    h(
+      "div",
+      { class: "fx-presets" },
+      ...FX_PRESETS.map((preset) =>
+        h("button", {
+          type: "button",
+          onclick: () => {
+            item.round = preset.round;
+            item.dissolve = preset.dissolve;
+            item.shadow = preset.shadow;
+            item.ghost = preset.ghost;
+            catalog.querySelectorAll("input[data-fx]").forEach((input) => {
+              input.value = String(Math.round(fxAmount(item[input.dataset.fx], Number(input.max))));
+            });
+            livePicFx(item);
+            persist().catch((error) => window.alert(error.message));
+          },
+        }, preset.label)
+      )
+    ),
+    fxRow("旋转", h("div", { class: "fx-pair" }, rotate, deg)),
+    h(
+      "div",
+      { class: "fx-row" },
+      h("span", {}, "镜像"),
+      h(
+        "div",
+        { class: "fx-pair" },
+        h("button", {
+          type: "button",
+          class: item.flipX ? "is-on" : "",
+          onclick: (event) => {
+            item.flipX = !item.flipX;
+            event.currentTarget.classList.toggle("is-on", item.flipX);
+            livePicFx(item);
+            persist().catch((error) => window.alert(error.message));
+          },
+        }, "左右"),
+        h("button", {
+          type: "button",
+          class: item.flipY ? "is-on" : "",
+          onclick: (event) => {
+            item.flipY = !item.flipY;
+            event.currentTarget.classList.toggle("is-on", item.flipY);
+            livePicFx(item);
+            persist().catch((error) => window.alert(error.message));
+          },
+        }, "上下")
+      )
+    ),
+    fxRow("圆角", fxRange(item, "round", 50)),
+    fxRow("边缘溶解", fxRange(item, "dissolve", 48)),
+    fxRow("阴影", h("div", { class: "fx-pair" }, fxRange(item, "shadow", 40), shadowColor)),
+    fxRow("实色阴影", h("div", { class: "fx-pair" }, fxRange(item, "ghost", 40), ghostColor))
+  );
+  document.body.append(catalog);
+  const box = anchor.getBoundingClientRect();
+  const width = catalog.offsetWidth || 240;
+  const left = Math.min(window.innerWidth - width - 8, Math.max(8, box.right + 8));
+  const top = Math.min(window.innerHeight - catalog.offsetHeight - 8, Math.max(8, box.top));
+  catalog.style.left = `${left}px`;
+  catalog.style.top = `${top}px`;
+}
+
+function bindSpin(figure, item) {
+  const handle = figure.querySelector(".spin");
+  if (!handle) return;
+  let spin = null;
+  const move = (event) => {
+    if (!spin) return;
+    const box = figure.getBoundingClientRect();
+    const angle = (Math.atan2(event.clientY - spin.cy, event.clientX - spin.cx) * 180) / Math.PI;
+    item.rotate = Math.round((((spin.base + angle - spin.start) % 360) + 360) % 360);
+    applyPicFx(figure, item);
+    const deg = document.querySelector("[data-fx-deg]");
+    const slider = document.querySelector(".fx-catalog input[type='range'][min='0'][max='359']");
+    if (deg) deg.textContent = `${Math.round(item.rotate)}°`;
+    if (slider) slider.value = String(Math.round(item.rotate));
+  };
+  const finish = () => {
+    if (!spin) return;
+    spin = null;
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", finish);
+    window.removeEventListener("pointercancel", finish);
+    persist().catch((error) => window.alert(error.message));
+  };
+  handle.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const box = figure.getBoundingClientRect();
+    spin = {
+      cx: box.left + box.width / 2,
+      cy: box.top + box.height / 2,
+      start: (Math.atan2(event.clientY - (box.top + box.height / 2), event.clientX - (box.left + box.width / 2)) * 180) / Math.PI,
+      base: Number(item.rotate) || 0,
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+  });
+}
+
 function wrapPic(job, item, index) {
   const width = Number(item.w);
-  const stage = Math.min(1120, window.innerWidth * 0.92);
+  const stageWidth = Math.min(1120, window.innerWidth * 0.92);
   const options = {
     kind: "gallery",
-    display: galleryDisplay(item.src, stage * ((Number.isFinite(width) && width > 0 ? width : 46) / 100)),
+    display: galleryDisplay(item.src, stageWidth * ((Number.isFinite(width) && width > 0 ? width : 46) / 100)),
     replace: () => replaceBodyImage(job, item),
     remove: () => removeBody(job, item),
   };
-  let figure = null;
   if (state.admin) {
-    options.turn = () => {
-      item.rotate = ((Number(item.rotate) || 0) + 90) % 360;
-      const image = figure.querySelector("img");
-      if (image) image.style.transform = `rotate(${item.rotate}deg)`;
-      pinStory();
-      persist().catch((error) => window.alert(error.message));
+    options.effects = () => {
+      const node = document.querySelectorAll(".wrap-pic");
+      let hit = null;
+      node.forEach((entry) => {
+        if (entry._item === item) hit = entry;
+      });
+      if (hit) showFxCatalog(hit, item);
     };
   }
-  figure = plate("wrap-pic", item.src, `${job.name} picture`, options);
+  const figure = plate("wrap-pic", item.src, `${job.name} picture`, options);
   if (!figure) return null;
+  const image = figure.querySelector("img");
+  const clip = h("div", { class: "wrap-pic-clip" });
+  const stage = h("div", { class: "wrap-pic-stage" }, clip);
+  clip.append(image);
+  figure.append(stage);
   figure._item = item;
   figure.contentEditable = "false";
   figure.style.zIndex = String(2 + (Number(index) || 0));
-  const image = figure.querySelector("img");
-  if (image) {
-    image.addEventListener("load", pinStory);
-    image.style.transform = `rotate(${Number(item.rotate) || 0}deg)`;
-  }
+  if (image) image.addEventListener("load", pinStory);
+  applyPicFx(figure, item);
   if (state.admin) {
     const handle = h("span", { class: "resize", "aria-hidden": "true" });
-    figure.append(handle);
+    const spin = h("span", { class: "spin", "aria-hidden": "true", title: "旋转" });
+    figure.append(handle, spin);
     bindFreeDrag(figure, job, item);
     bindWrapResize(handle, figure, job, item);
+    bindSpin(figure, item);
   }
   return figure;
 }
@@ -612,7 +868,7 @@ function bindFreeDrag(node, job, item, grab) {
 
   node.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
-    if (event.target.closest(".resize")) return;
+    if (event.target.closest(".resize, .spin, .fx-catalog")) return;
     if (grab && !event.target.closest(grab)) return;
     const rect = node.getBoundingClientRect();
     drag = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moved: false };
@@ -1068,6 +1324,7 @@ function renderMissing() {
 function paint() {
   const scroll = window.scrollY;
   closeMenu();
+  closeFx();
   document.body.classList.toggle("is-admin", state.admin);
   const { job, explicit } = selected(state.jobs);
   YxPalette.applyJobColors(job || {});
@@ -1098,10 +1355,13 @@ function paint() {
 
 document.addEventListener("pointerdown", (event) => {
   if (!event.target.closest(".image-menu")) closeMenu();
+  if (event.target.closest(".fx-catalog, .spin, .image-menu")) return;
+  const pic = event.target.closest(".wrap-pic");
+  if (!pic || pic._item !== state.fxItem) closeFx();
 });
 document.addEventListener("contextmenu", (event) => {
   if (!state.admin) return;
-  if (event.target.closest("img, .sprite, .image-menu, .resize, .panel, a, button, input, textarea")) return;
+  if (event.target.closest("img, .sprite, .image-menu, .fx-catalog, .resize, .spin, .panel, a, button, input, textarea")) return;
   const { job } = selected(state.jobs);
   if (!job) return;
   event.preventDefault();
