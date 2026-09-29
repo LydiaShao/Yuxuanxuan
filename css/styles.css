@@ -238,9 +238,17 @@ main#content {
   text-align: right;
 }
 
+.side-right .identity-copy {
+  align-items: flex-end;
+  text-align: right;
+}
+
 .identity-copy {
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   padding-bottom: 1.35rem;
 }
 
@@ -310,8 +318,13 @@ h1 {
   gap: 0.42rem;
   width: fit-content;
   max-width: 100%;
-  margin: 0 0 0.5rem;
-  color: var(--muted);
+  margin: 0 0 0.45rem;
+  color: var(--text);
+  filter: drop-shadow(0 0.08rem 0.22rem rgba(20, 16, 14, 0.38));
+}
+
+.name-ornament-end {
+  margin: 0.45rem 0 0;
 }
 
 .name-ornament::before,
@@ -416,12 +429,96 @@ h1 {
   height: auto;
 }
 
-.gallery figure.is-tall img {
-  max-height: calc(100svh - 4.5rem);
+.story {
+  width: 100%;
+  margin-top: 1.6rem;
 }
 
-.gallery figure.is-wide img {
-  max-height: calc(50svh - 1.6rem);
+.story-text {
+  display: flow-root;
+  min-height: 2rem;
+  font-family: var(--body);
+  font-size: 1.05rem;
+  line-height: 1.8;
+}
+
+.story-text .panel {
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.story-text .panel-text {
+  display: inline;
+  padding: 0.12rem 0.28rem;
+  line-height: 2;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.wrap-pic {
+  position: relative;
+  z-index: 1;
+  width: 46%;
+  max-width: 100%;
+  margin: 0.25rem 1.15rem 0.85rem 0;
+  shape-outside: margin-box;
+}
+
+.wrap-pic.is-left {
+  float: left;
+  clear: left;
+}
+
+.wrap-pic.is-right {
+  float: right;
+  clear: right;
+  margin: 0.25rem 0 0.85rem 1.15rem;
+}
+
+.wrap-pic img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: none;
+  max-height: none;
+}
+
+body.is-admin .wrap-pic {
+  position: relative;
+  cursor: grab;
+  touch-action: none;
+}
+
+body.is-admin .wrap-pic.is-dragging {
+  position: fixed;
+  z-index: 6;
+  float: none;
+  margin: 0;
+  cursor: grabbing;
+  opacity: 0.92;
+}
+
+body.is-admin .resize {
+  position: absolute;
+  right: -0.15rem;
+  bottom: -0.15rem;
+  z-index: 2;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 0.15rem;
+  background: var(--text);
+  cursor: nwse-resize;
+  box-shadow: 0 0.08rem 0.2rem rgba(20, 16, 14, 0.35);
+}
+
+body.is-admin .wrap-pic.is-right .resize {
+  right: auto;
+  left: -0.15rem;
+  cursor: nesw-resize;
 }
 
 .empty,

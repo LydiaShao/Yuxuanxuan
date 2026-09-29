@@ -254,6 +254,18 @@ def clean_sprites(value, strict):
     return sprites
 
 
+def clean_ratio(value):
+    if value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number:
+        return None
+    return round(min(100.0, max(8.0, number)), 2)
+
+
 def clean_images(value, strict):
     if value in (None, ""):
         return []
@@ -369,7 +381,14 @@ def parse_body(raw, strict):
                 if strict:
                     raise ValueError(f"每个职业最多 {MAX_IMAGES} 张更多图片")
                 continue
-            body.append({"type": "image", "src": src})
+            image = {"type": "image", "src": src}
+            width = clean_ratio(item.get("w"))
+            side = str(item.get("side") or "").strip().lower()
+            if width is not None:
+                image["w"] = width
+            if side in ("left", "right"):
+                image["side"] = side
+            body.append(image)
             continue
         if kind not in ("text", ""):
             if strict:

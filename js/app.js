@@ -156,17 +156,7 @@ function payload() {
         align: job.align === "right" ? "right" : "left",
         tagline: (job.tagline || "").trim(),
         colors: YxPalette.jobColors(job),
-        body: ensureBody(job).map((item) => (
-          item.type === "image"
-            ? { type: "image", src: item.src }
-            : {
-                type: "text",
-                text: item.text || "",
-                markup: item.markup || "",
-                background: cssHex(item.background, "#f4efe6"),
-                color: cssHex(item.color, "#2a2420"),
-              }
-        )),
+        body: ensureBody(job).map((item) => (item.type === "image" ? imagePayload(item) : textPayload(item))),
         blocks: job.blocks,
         banner: job.banner || "",
         portrait: job.portrait || "",
@@ -212,11 +202,29 @@ function bannerDisplay(src) {
   return displayPath(src, pixels, 90);
 }
 
-function galleryDisplay(src) {
+function galleryDisplay(src, cssWidth) {
   const dpr = Math.max(1, window.devicePixelRatio || 1);
-  const css = window.innerHeight;
+  const css = Math.max(1, cssWidth || window.innerWidth * 0.46);
   const softer = Math.max(css, css * dpr * 0.72);
   return displayPath(src, softer, 74);
+}
+
+function imagePayload(item) {
+  const image = { type: "image", src: item.src };
+  const width = Number(item.w);
+  if (Number.isFinite(width) && width > 0) image.w = Math.round(Math.min(100, Math.max(8, width)) * 100) / 100;
+  if (item.side === "left" || item.side === "right") image.side = item.side;
+  return image;
+}
+
+function textPayload(item) {
+  return {
+    type: "text",
+    text: item.text || "",
+    markup: item.markup || "",
+    background: cssHex(item.background, "#f4efe6"),
+    color: cssHex(item.color, "#2a2420"),
+  };
 }
 
 function bindMenu(node, original, extra) {
@@ -234,14 +242,8 @@ function bindMenu(node, original, extra) {
 function plate(className, src, alt, options) {
   if (!src) return null;
   const frame = h("figure", { class: className });
-  const image = h("img", { src: options.display || src, alt, "data-original": src });
+  const image = h("img", { src: options.display || src, alt, "data-original": src, draggable: "false" });
   if (options.kind) image.dataset.kind = options.kind;
-  image.addEventListener("load", () => {
-    if (options.kind !== "gallery") return;
-    const tall = image.naturalHeight > image.naturalWidth;
-    frame.classList.toggle("is-tall", tall);
-    frame.classList.toggle("is-wide", !tall);
-  });
   image.addEventListener("error", () => {
     if (image.getAttribute("src") !== src) {
       image.dataset.fellback = "1";
@@ -251,7 +253,7 @@ function plate(className, src, alt, options) {
     frame.remove();
   });
   frame.append(image);
-  bindMenu(image, src, options);
+  bindMenu(frame, src, options);
   return frame;
 }
 
@@ -272,7 +274,8 @@ function renderJob(job) {
       "h1",
       {},
       h("span", { class: "name-ornament", "aria-hidden": "true" }, h("span")),
-      h("span", { class: "name-text" }, job.name)
+      h("span", { class: "name-text" }, job.name),
+      h("span", { class: "name-ornament name-ornament-end", "aria-hidden": "true" }, h("span"))
     ),
     job.tagline ? h("p", { class: "tagline" }, job.tagline) : null
   );
@@ -284,47 +287,154 @@ function renderJob(job) {
       "div",
       { class: "stage" },
       portrait ? h("div", { class: "identity" }, portrait, copy) : copy,
-      ...renderFlow(job)
+      ...renderStory(job)
     )
   );
 }
 
-function renderFlow(job) {
+function renderStory(job) {
   ensureBody(job);
-  const nodes = [];
-  let run = [];
-  const flush = () => {
-    if (!run.length) return;
-    nodes.push(h("div", { class: "gallery" }, ...run));
-    run = [];
-  };
-  job.body.forEach((item, index) => {
+  const flow = h("div", { class: "story-text" });
+  job.body.forEach((item) => {
     if (item.type === "image") {
-      const figure = plate("plate", item.src, `${job.name} picture`, {
-        kind: "gallery",
-        display: galleryDisplay(item.src),
-        replace: () => replaceBodyImage(job, index),
-        remove: () => removeBody(job, index),
-      });
-      if (figure) run.push(figure);
+      const figure = wrapPic(job, item);
+      if (figure) flow.append(figure);
       return;
     }
-    flush();
     if (!state.admin && !(item.text || "").trim()) return;
     const text = h("div", {
       class: "panel-text",
       contenteditable: state.admin ? "true" : null,
+      style: `background:${cssHex(item.background, "#f4efe6")};color:${cssHex(item.color, "#2a2420")}`,
       onblur: (event) => commitBlock(job, item, event.target),
     });
     text.innerHTML = item.markup || escapeHtml(item.text || "").replace(/\n/g, "<br>");
-    nodes.push(h(
-      "section",
-      { class: "panel", style: `background:${cssHex(item.background, "#f4efe6")};color:${cssHex(item.color, "#2a2420")}` },
-      text
-    ));
+    const section = h("section", { class: "panel" }, text);
+    section._item = item;
+    flow.append(section);
   });
-  flush();
-  return nodes;
+  if (!flow.childNodes.length) return [];
+  return [h("div", { class: "story" }, flow)];
+}
+
+function wrapPic(job, item) {
+  const side = item.side === "right" ? "right" : "left";
+  const width = Number(item.w);
+  const stage = Math.min(1120, window.innerWidth * 0.92);
+  const figure = plate(`wrap-pic is-${side}`, item.src, `${job.name} picture`, {
+    kind: "gallery",
+    display: galleryDisplay(item.src, stage * ((Number.isFinite(width) && width > 0 ? width : 46) / 100)),
+    replace: () => replaceBodyImage(job, item),
+    remove: () => removeBody(job, item),
+  });
+  if (!figure) return null;
+  figure._item = item;
+  figure.contentEditable = "false";
+  if (Number.isFinite(width) && width > 0) figure.style.width = `${width}%`;
+  if (state.admin) {
+    const handle = h("span", { class: "resize", "aria-hidden": "true" });
+    figure.append(handle);
+    bindWrapDrag(figure, job, item);
+    bindWrapResize(handle, figure, job, item);
+  }
+  return figure;
+}
+
+function bindWrapDrag(figure, job, item) {
+  let drag = null;
+  figure.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || !event.target.closest("img")) return;
+    const rect = figure.getBoundingClientRect();
+    drag = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, width: rect.width, moved: false };
+    event.preventDefault();
+    try { figure.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
+  });
+  figure.addEventListener("pointermove", (event) => {
+    if (!drag) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      figure.classList.add("is-dragging");
+      figure.style.width = `${drag.width}px`;
+    }
+    figure.style.left = `${drag.left + dx}px`;
+    figure.style.top = `${drag.top + dy}px`;
+  });
+  const stop = () => {
+    drag = null;
+    figure.classList.remove("is-dragging");
+    figure.style.left = "";
+    figure.style.top = "";
+    figure.style.width = item.w ? `${item.w}%` : "";
+  };
+  figure.addEventListener("pointerup", (event) => {
+    if (!drag) return;
+    const moved = drag.moved;
+    const x = event.clientX;
+    const y = event.clientY;
+    stop();
+    if (!moved) return;
+    const flow = figure.parentElement;
+    if (!flow) return;
+    const rect = flow.getBoundingClientRect();
+    item.side = x < rect.left + rect.width / 2 ? "left" : "right";
+    figure.classList.toggle("is-left", item.side === "left");
+    figure.classList.toggle("is-right", item.side === "right");
+    const kids = [...flow.children].filter((node) => node !== figure);
+    let at = kids.length;
+    figure.style.visibility = "hidden";
+    const probe = document.elementFromPoint(x, y);
+    figure.style.visibility = "";
+    const hit = probe && probe.closest ? probe.closest(".story-text > *") : null;
+    if (hit && hit.parentElement === flow) {
+      const hitRect = hit.getBoundingClientRect();
+      const index = kids.indexOf(hit);
+      at = index < 0 ? kids.length : y < hitRect.top + hitRect.height / 2 ? index : index + 1;
+    } else if (y < rect.top) at = 0;
+    kids.splice(at, 0, figure);
+    for (const node of kids) flow.append(node);
+    job.body = kids.map((node) => node._item).filter(Boolean);
+    persist().then(() => paint()).catch((error) => window.alert(error.message));
+  });
+  figure.addEventListener("pointercancel", () => {
+    if (drag) stop();
+  });
+}
+
+function bindWrapResize(handle, figure, job, item) {
+  let resizing = null;
+  handle.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = figure.getBoundingClientRect();
+    const flow = figure.parentElement;
+    resizing = {
+      anchor: item.side === "right" ? rect.right : rect.left,
+      flow: flow ? flow.getBoundingClientRect().width : rect.width,
+    };
+    try { handle.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
+  });
+  handle.addEventListener("pointermove", (event) => {
+    if (!resizing) return;
+    const px = item.side === "right" ? resizing.anchor - event.clientX : event.clientX - resizing.anchor;
+    const percent = Math.min(100, Math.max(8, (px / Math.max(resizing.flow, 1)) * 100));
+    resizing.percent = Math.round(percent * 100) / 100;
+    figure.style.width = `${resizing.percent}%`;
+  });
+  const finish = () => {
+    if (!resizing) return;
+    const percent = resizing.percent;
+    resizing = null;
+    if (percent == null) return;
+    item.w = percent;
+    refreshPictures();
+    persist().catch((error) => window.alert(error.message));
+  };
+  handle.addEventListener("pointerup", finish);
+  handle.addEventListener("pointercancel", finish);
 }
 
 function addText(job) {
@@ -363,9 +473,8 @@ async function commitBlock(job, item, node) {
   paint();
 }
 
-async function removeBody(job, index) {
-  ensureBody(job);
-  job.body.splice(index, 1);
+async function removeBody(job, item) {
+  job.body = ensureBody(job).filter((entry) => entry !== item);
   try {
     await persist();
     paint();
@@ -374,12 +483,42 @@ async function removeBody(job, index) {
   }
 }
 
-async function replaceBodyImage(job, index) {
+async function replaceBodyImage(job, item) {
   const file = await chooseFile();
   if (!file) return;
   try {
-    ensureBody(job);
-    job.body[index].src = await uploadFile(file);
+    item.src = await uploadFile(file);
+    await persist();
+    paint();
+  } catch (error) {
+    window.alert(error.message);
+  }
+}
+
+function choosePictures() {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    input.accept = "image/jpeg,image/png,image/webp,image/gif";
+    input.addEventListener("change", () => resolve([...input.files]));
+    input.click();
+  });
+}
+
+async function addPictures(job) {
+  if (!state.admin) return;
+  const files = await choosePictures();
+  if (!files.length) return;
+  ensureBody(job);
+  const room = 40 - job.body.filter((item) => item.type === "image").length;
+  if (room <= 0) {
+    window.alert("This page already has 40 pictures.");
+    return;
+  }
+  const batch = files.slice(0, room);
+  try {
+    for (const file of batch) job.body.push({ type: "image", src: await uploadFile(file) });
     await persist();
     paint();
   } catch (error) {
@@ -390,9 +529,24 @@ async function replaceBodyImage(job, index) {
 function fitOrnament() {
   document.querySelectorAll(".identity-copy h1").forEach((heading) => {
     const name = heading.querySelector(".name-text");
-    const ornament = heading.querySelector(".name-ornament");
-    if (!name || !ornament) return;
-    ornament.style.width = `${Math.ceil(name.getBoundingClientRect().width)}px`;
+    if (!name) return;
+    const width = Math.ceil(name.getBoundingClientRect().width);
+    if (!width) return;
+    heading.querySelectorAll(".name-ornament").forEach((ornament) => {
+      ornament.style.width = `${width}px`;
+    });
+  });
+}
+
+function refreshPictures() {
+  document.querySelectorAll("img[data-kind]").forEach((image) => {
+    if (image.dataset.fellback) return;
+    const src = image.dataset.original;
+    if (!src) return;
+    const frame = image.closest("figure");
+    const css = image.dataset.kind === "banner" ? window.innerWidth : frame && frame.clientWidth;
+    const next = image.dataset.kind === "banner" ? bannerDisplay(src) : galleryDisplay(src, css);
+    if (image.getAttribute("src") !== next) image.src = next;
   });
 }
 
@@ -508,6 +662,7 @@ function renderMissing() {
 function paint() {
   const scroll = window.scrollY;
   closeMenu();
+  document.body.classList.toggle("is-admin", state.admin);
   const { job, explicit } = selected(state.jobs);
   YxPalette.applyJobColors(job || {});
   const main = document.getElementById("content");
@@ -529,6 +684,7 @@ function paint() {
   }
   window.scrollTo(0, scroll);
   fitOrnament();
+  requestAnimationFrame(refreshPictures);
 }
 
 document.addEventListener("pointerdown", (event) => {
@@ -536,23 +692,21 @@ document.addEventListener("pointerdown", (event) => {
 });
 document.addEventListener("contextmenu", (event) => {
   if (!state.admin) return;
-  if (event.target.closest("img, .sprite, .image-menu, a, button, input, textarea, .panel-text")) return;
+  if (event.target.closest("img, .sprite, .image-menu, .resize, a, button, input, textarea")) return;
   const { job } = selected(state.jobs);
   if (!job) return;
   event.preventDefault();
-  showMenu(event.clientX, event.clientY, [{ label: "Add text", action: () => addText(job) }]);
+  showMenu(event.clientX, event.clientY, [
+    { label: "Add text", action: () => addText(job) },
+    { label: "Add picture", action: () => addPictures(job) },
+  ]);
 });
 window.addEventListener("hashchange", () => paint());
 let displayTimer = 0;
 window.addEventListener("resize", () => {
   clearTimeout(displayTimer);
   displayTimer = window.setTimeout(() => {
-    document.querySelectorAll("img[data-kind]").forEach((image) => {
-      if (image.dataset.fellback) return;
-      const src = image.dataset.original;
-      const next = image.dataset.kind === "banner" ? bannerDisplay(src) : galleryDisplay(src);
-      if (image.getAttribute("src") !== next) image.src = next;
-    });
+    refreshPictures();
     fitOrnament();
   }, 180);
 });
