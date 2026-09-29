@@ -12,6 +12,8 @@
   --body: "Literata", "Noto Serif SC", Palatino, serif;
   --ui: "Figtree", "Noto Sans SC", sans-serif;
   --page: 100vw;
+  --edge: calc(4vw + 1rem);
+  --gap: 1.75rem;
 }
 
 *,
@@ -472,8 +474,6 @@ h1 {
 }
 
 .story {
-  --edge: calc(4vw + 1rem);
-  --gap: 1.75rem;
   width: calc(var(--page) - 2 * var(--edge));
   margin-top: 1.6rem;
   margin-left: calc(var(--edge) - 4vw);
@@ -487,38 +487,61 @@ h1 {
   display: flow-root;
   width: auto;
   min-height: 2rem;
-  margin-left: calc(var(--gap) / -2);
-  margin-right: calc(var(--gap) / -2);
   font-family: var(--body);
   font-size: 1.05rem;
   line-height: 1.8;
 }
 
 .story-text .panel {
+  display: flow-root;
   width: auto;
   max-width: none;
-  margin: 0;
-  padding: 0;
-  background: transparent;
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.9rem;
   overflow: visible;
 }
 
 .story-text .panel-text {
-  display: inline;
-  padding: 0.12rem 0.28rem;
-  line-height: 2;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+  display: block;
+  padding: 0;
+  line-height: 1.85;
+  background: transparent;
+}
+
+body.is-admin .story-text .panel {
+  position: relative;
+  padding-left: 1.25rem;
+}
+
+body.is-admin .drag {
+  position: absolute;
+  left: 0.28rem;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  width: 0.32rem;
+  border-radius: 0.16rem;
+  background: color-mix(in srgb, currentColor 28%, transparent);
+  cursor: grab;
+  touch-action: none;
+}
+
+body.is-admin .panel.is-dragging,
+body.is-admin .wrap-pic.is-dragging {
+  position: fixed;
+  z-index: 6;
+  float: none;
+  margin: 0;
+  cursor: grabbing;
+  opacity: 0.92;
 }
 
 body.is-admin .panel-text.is-empty {
-  display: inline-block;
-  min-width: min(18rem, 70%);
+  display: block;
+  min-width: 0;
   min-height: 3.4rem;
-  padding: 0.45rem 0.7rem;
-  vertical-align: top;
-  outline: 1px dashed color-mix(in srgb, currentColor 55%, transparent);
-  outline-offset: 3px;
+  padding: 0.2rem 0;
+  outline: 1px dashed color-mix(in srgb, currentColor 45%, transparent);
+  outline-offset: 2px;
   cursor: text;
   scroll-margin: 5rem;
 }
@@ -531,9 +554,9 @@ body.is-admin .panel-text.is-empty::before {
 .wrap-pic {
   position: relative;
   z-index: 1;
-  width: calc(50% - var(--gap));
+  width: calc((100% - var(--gap)) / 2);
   max-width: 100%;
-  margin: 0.45rem calc(var(--gap) / 2) 1rem;
+  margin: 0.45rem var(--gap) 1rem 0;
   shape-outside: margin-box;
 }
 
@@ -543,6 +566,7 @@ body.is-admin .panel-text.is-empty::before {
 
 .wrap-pic.is-right {
   float: right;
+  margin: 0.45rem 0 1rem var(--gap);
 }
 
 .wrap-pic img {
@@ -557,15 +581,6 @@ body.is-admin .wrap-pic {
   position: relative;
   cursor: grab;
   touch-action: none;
-}
-
-body.is-admin .wrap-pic.is-dragging {
-  position: fixed;
-  z-index: 6;
-  float: none;
-  margin: 0;
-  cursor: grabbing;
-  opacity: 0.92;
 }
 
 body.is-admin .resize {
@@ -612,6 +627,8 @@ body.is-admin .wrap-pic.is-right .resize {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
+  width: calc(var(--page) - 2 * var(--edge));
+  margin: 2.2rem var(--edge) 0;
   padding: 1rem 0 1.4rem;
   color: var(--muted);
   border-top: 1px solid color-mix(in srgb, var(--frame) 65%, transparent);
@@ -679,9 +696,22 @@ body.is-admin .wrap-pic.is-right .resize {
   cursor: pointer;
 }
 
-.image-menu a:hover,
-.image-menu button:hover {
-  background: color-mix(in srgb, var(--bar-text) 14%, transparent);
+.image-menu label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+
+.image-menu input[type="color"] {
+  width: 1.6rem;
+  height: 1.2rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 a:focus-visible,
@@ -724,9 +754,12 @@ textarea:focus-visible {
 
   .story,
   .side-right .story {
-    --edge: 1.25rem;
     width: calc(var(--page) - 2 * var(--edge));
     margin-left: calc(var(--edge) - 0.7rem);
+  }
+
+  :root {
+    --edge: 1.25rem;
   }
 }
 

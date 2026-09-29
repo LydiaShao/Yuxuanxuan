@@ -72,6 +72,15 @@ function showMenu(x, y, items) {
       if (item.href) {
         return h("a", { href: item.href, target: "_blank", rel: "noopener" }, item.label);
       }
+      if (item.color) {
+        return h("label", {}, item.label, h("input", {
+          type: "color",
+          value: item.value,
+          onclick: (event) => event.stopPropagation(),
+          oninput: (event) => item.oninput(event.target.value),
+          onchange: () => item.onchange && item.onchange(),
+        }));
+      }
       return h("button", { type: "button", onclick: () => { closeMenu(); item.action(); } }, item.label);
     })
   );
@@ -240,10 +249,27 @@ function bindMenu(node, original, extra) {
   node.addEventListener("contextmenu", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    const items = [{ label: "View original", href: original }];
+    const items = [];
+    if (original) items.push({ label: "View original", href: original });
     if (state.admin && extra.replace) items.push({ label: "Replace", action: extra.replace });
     if (state.admin && extra.remove) items.push({ label: "Remove", action: extra.remove });
     if (extra.turn) items.push({ label: "Turn 90°", action: extra.turn });
+    if (state.admin && extra.colors) {
+      items.push({
+        label: "Background",
+        color: true,
+        value: cssHex(extra.colors.background, "#f4efe6"),
+        oninput: (value) => tintBlock(extra.colors, "background", value, false),
+        onchange: () => persist().catch((error) => window.alert(error.message)),
+      });
+      items.push({
+        label: "Text color",
+        color: true,
+        value: cssHex(extra.colors.color, "#2a2420"),
+        oninput: (value) => tintBlock(extra.colors, "color", value, false),
+        onchange: () => persist().catch((error) => window.alert(error.message)),
+      });
+    }
     showMenu(event.clientX, event.clientY, items);
   });
 }
@@ -313,14 +339,29 @@ function renderStory(job) {
     const text = h("div", {
       class: `panel-text${state.admin && !(item.text || "").trim() ? " is-empty" : ""}`,
       contenteditable: state.admin ? "true" : null,
-      style: `background:${cssHex(item.background, "#f4efe6")};color:${cssHex(item.color, "#2a2420")}`,
       oninput: (event) => event.currentTarget.classList.toggle("is-empty", !event.currentTarget.innerText.trim()),
       onblur: (event) => commitBlock(job, item, event.target),
     });
     if (item._fresh) text.dataset.fresh = "1";
     text.innerHTML = item.markup || escapeHtml(item.text || "").replace(/\n/g, "<br>");
-    const section = h("section", { class: "panel" }, text);
+    const section = h(
+      "section",
+      {
+        class: "panel",
+        style: `background:${cssHex(item.background, "#f4efe6")};color:${cssHex(item.color, "#2a2420")}`,
+      },
+      text
+    );
     section._item = item;
+    if (state.admin) {
+      const grab = h("span", { class: "drag", "aria-hidden": "true" });
+      section.prepend(grab);
+      bindStoryDrag(section, job, item, "drag");
+      bindMenu(section, "", {
+        colors: item,
+        remove: () => removeBody(job, item),
+      });
+    }
     flow.append(section);
   });
   if (!flow.childNodes.length) return [];
@@ -344,71 +385,84 @@ function wrapPic(job, item) {
   if (state.admin) {
     const handle = h("span", { class: "resize", "aria-hidden": "true" });
     figure.append(handle);
-    bindWrapDrag(figure, job, item);
+    bindStoryDrag(figure, job, item, "img");
     bindWrapResize(handle, figure, job, item);
   }
   return figure;
 }
 
-function bindWrapDrag(figure, job, item) {
+function tintBlock(item, key, value) {
+  const hex = cssHex(value, key === "color" ? "#2a2420" : "#f4efe6");
+  item[key] = hex;
+  document.querySelectorAll(".story-text .panel").forEach((node) => {
+    if (node._item !== item) return;
+    node.style[key] = hex;
+  });
+}
+
+function bindStoryDrag(node, job, item, grab) {
   let drag = null;
-  figure.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0 || !event.target.closest("img")) return;
-    const rect = figure.getBoundingClientRect();
+  node.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    if (grab === "img" && !event.target.closest("img")) return;
+    if (grab === "drag" && !event.target.closest(".drag")) return;
+    const rect = node.getBoundingClientRect();
     drag = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, width: rect.width, moved: false };
     event.preventDefault();
-    try { figure.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
+    try { node.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
   });
-  figure.addEventListener("pointermove", (event) => {
+  node.addEventListener("pointermove", (event) => {
     if (!drag) return;
     const dx = event.clientX - drag.x;
     const dy = event.clientY - drag.y;
     if (!drag.moved && Math.hypot(dx, dy) < 4) return;
     if (!drag.moved) {
       drag.moved = true;
-      figure.classList.add("is-dragging");
-      figure.style.width = `${drag.width}px`;
+      node.classList.add("is-dragging");
+      node.style.width = `${drag.width}px`;
     }
-    figure.style.left = `${drag.left + dx}px`;
-    figure.style.top = `${drag.top + dy}px`;
+    node.style.left = `${drag.left + dx}px`;
+    node.style.top = `${drag.top + dy}px`;
   });
   const stop = () => {
     drag = null;
-    figure.classList.remove("is-dragging");
-    figure.style.left = "";
-    figure.style.top = "";
-    figure.style.width = item.w ? `${item.w}%` : "";
+    node.classList.remove("is-dragging");
+    node.style.left = "";
+    node.style.top = "";
+    node.style.width = item.w ? `${item.w}%` : "";
   };
-  figure.addEventListener("pointerup", (event) => {
+  node.addEventListener("pointerup", (event) => {
     if (!drag) return;
     const moved = drag.moved;
     const x = event.clientX;
     const y = event.clientY;
     stop();
     if (!moved) return;
-    const flow = figure.parentElement;
+    const flow = node.parentElement;
     if (!flow) return;
     const rect = flow.getBoundingClientRect();
-    item.side = x < rect.left + rect.width / 2 ? "left" : "right";
-    figure.classList.toggle("is-left", item.side === "left");
-    figure.classList.toggle("is-right", item.side === "right");
-    const kids = [...flow.children].filter((node) => node !== figure);
+    if (item.type === "image") {
+      item.side = x < rect.left + rect.width / 2 ? "left" : "right";
+      node.classList.toggle("is-left", item.side === "left");
+      node.classList.toggle("is-right", item.side === "right");
+    }
+    const kids = [...flow.children].filter((child) => child !== node);
     let at = kids.length;
-    figure.style.visibility = "hidden";
+    node.style.visibility = "hidden";
     const probe = document.elementFromPoint(x, y);
-    figure.style.visibility = "";
+    node.style.visibility = "";
     const hit = probe && probe.closest ? probe.closest(".story-text > *") : null;
     if (hit && hit.parentElement === flow) {
       const hitRect = hit.getBoundingClientRect();
       const index = kids.indexOf(hit);
       at = index < 0 ? kids.length : y < hitRect.top + hitRect.height / 2 ? index : index + 1;
     } else if (y < rect.top) at = 0;
-    kids.splice(at, 0, figure);
-    for (const node of kids) flow.append(node);
-    job.body = kids.map((node) => node._item).filter(Boolean);
+    kids.splice(at, 0, node);
+    for (const child of kids) flow.append(child);
+    job.body = kids.map((child) => child._item).filter(Boolean);
     persist().then(() => paint()).catch((error) => window.alert(error.message));
   });
-  figure.addEventListener("pointercancel", () => {
+  node.addEventListener("pointercancel", () => {
     if (drag) stop();
   });
 }
@@ -716,7 +770,7 @@ document.addEventListener("pointerdown", (event) => {
 });
 document.addEventListener("contextmenu", (event) => {
   if (!state.admin) return;
-  if (event.target.closest("img, .sprite, .image-menu, .resize, a, button, input, textarea")) return;
+  if (event.target.closest("img, .sprite, .image-menu, .resize, .panel, a, button, input, textarea")) return;
   const { job } = selected(state.jobs);
   if (!job) return;
   event.preventDefault();
