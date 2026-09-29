@@ -251,7 +251,25 @@ def clean_sprites(value, strict):
             "y": clean_percent(item.get("y")),
             "rotate": clean_rotate(item.get("rotate")),
         })
+        size = clean_scale(item.get("size"))
+        if size is not None:
+            sprites[-1]["size"] = size
     return sprites
+
+
+def clean_scale(value):
+    if value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number:
+        return None
+    size = round(min(220.0, max(20.0, number)), 1)
+    if size == 100:
+        return None
+    return size
 
 
 def clean_ratio(value):
@@ -577,7 +595,29 @@ def soften_image(source, edge, quality):
         return target
 
 
-def sniff_image(blob):
+def still_frame(source):
+    try:
+        from PIL import Image
+    except ImportError:
+        return source
+    stamp = source.stat().st_mtime_ns
+    target = DISPLAYS / f"{source.stem}-{stamp}-still.png"
+    if target.is_file():
+        return target
+    DISPLAYS.mkdir(parents=True, exist_ok=True)
+    with Image.open(source) as image:
+        if not (getattr(image, "is_animated", False) and getattr(image, "n_frames", 1) > 1):
+            return source
+        image.seek(0)
+        frame = image.convert("RGBA")
+        temporary = target.with_suffix(target.suffix + ".part")
+        frame.save(temporary, format="PNG", optimize=True)
+        temporary.replace(target)
+    prefix = f"{source.stem}-{stamp}-still"
+    for stale in DISPLAYS.glob(f"{source.stem}-*-still.png"):
+        if stale.stem != prefix:
+            stale.unlink(missing_ok=True)
+    return target
     if blob.startswith(b"\xff\xd8\xff"):
         return ".jpg"
     if blob.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -769,6 +809,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/display":
             self.handle_display(parsed.query)
             return
+        if path == "/api/still":
+            self.handle_still(parsed.query)
+            return
         if path == "/api/session":
             self.send_json(200, {"needsSetup": needs_setup(), "authenticated": self.is_authenticated()})
             return
@@ -896,6 +939,27 @@ class Handler(BaseHTTPRequestHandler):
         source = ROOT / cleaned
         try:
             path = soften_image(source, edge, quality)
+        except Exception:
+            path = source
+        blob = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", TYPES.get(path.suffix.lower(), "application/octet-stream"))
+        self.send_header("Content-Length", str(len(blob)))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(blob)
+
+    def handle_still(self, query):
+        params = parse_qs(query)
+        src = (params.get("src") or [""])[0]
+        try:
+            cleaned = clean_image(src, strict=True)
+        except ValueError:
+            self.send_error(404)
+            return
+        source = ROOT / cleaned
+        try:
+            path = still_frame(source)
         except Exception:
             path = source
         blob = path.read_bytes()

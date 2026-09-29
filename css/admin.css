@@ -208,11 +208,9 @@ button:disabled {
   padding: 0.35rem;
 }
 
-.extra-item img {
+.extra-item input[type="range"] {
   width: 100%;
-  max-height: 14rem;
-  object-fit: contain;
-  display: block;
+  margin: 0.15rem 0 0.45rem;
 }
 
 .hint {

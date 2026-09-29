@@ -254,18 +254,33 @@ function spriteList(job) {
     "div",
     {},
     h("label", {}, "小人"),
-    h("p", { class: "hint" }, "上传后出现在网页上，不跟滚动。位置在网页上拖，右键转 90°。可以一次选多张。"),
+    h("p", { class: "hint" }, "上传后出现在网页上，不跟滚动。位置在网页上拖，右键转 90°。大小在这里调。悬停会跳一下；GIF 平时停住，悬停才动。可以一次选多张。"),
     h(
       "div",
       { class: "extra-list" },
-      ...job.sprites.map((sprite, index) =>
-        h(
+      ...job.sprites.map((sprite, index) => {
+        const size = Number.isFinite(Number(sprite.size)) && Number(sprite.size) > 0 ? Number(sprite.size) : 100;
+        const label = h("label", {}, `大小 ${Math.round(size)}%`);
+        return h(
           "div",
           { class: "extra-item" },
           h("figure", {}, h("img", { src: sprite.src, alt: "" })),
+          label,
+          h("input", {
+            type: "range",
+            min: "20",
+            max: "220",
+            step: "5",
+            value: String(Math.round(size)),
+            oninput: (event) => {
+              sprite.size = Number(event.target.value);
+              label.textContent = `大小 ${Math.round(sprite.size)}%`;
+              state.dirty = true;
+            },
+          }),
           h("button", { type: "button", onclick: () => removeSprite(job, index) }, "去掉")
-        )
-      )
+        );
+      })
     ),
     input
   );
@@ -309,7 +324,7 @@ async function uploadMany(job, key, fileList, input) {
       const path = await sendFile(batch[index]);
       if (key === "sprites") {
         const count = job.sprites.length;
-        job.sprites.push({ src: path, x: 8 + (count % 6) * 8, y: 18 + Math.floor(count / 6) * 12, rotate: 0 });
+        job.sprites.push({ src: path, x: 8 + (count % 6) * 8, y: 18 + Math.floor(count / 6) * 12, rotate: 0, size: 100 });
       } else {
         job.images.push(path);
       }
@@ -414,12 +429,19 @@ function payload() {
         banner: job.banner || "",
         portrait: job.portrait || "",
         images: body.filter((item) => item.type === "image").map((item) => item.src),
-        sprites: (job.sprites || []).map((sprite) => ({
-          src: sprite.src,
-          x: Number(sprite.x) || 0,
-          y: Number(sprite.y) || 0,
-          rotate: Number(sprite.rotate) || 0,
-        })),
+        sprites: (job.sprites || []).map((sprite) => {
+          const size = Number(sprite.size);
+          const record = {
+            src: sprite.src,
+            x: Number(sprite.x) || 0,
+            y: Number(sprite.y) || 0,
+            rotate: Number(sprite.rotate) || 0,
+          };
+          if (Number.isFinite(size) && size > 0 && size !== 100) {
+            record.size = Math.round(Math.min(220, Math.max(20, size)) * 10) / 10;
+          }
+          return record;
+        }),
       };
     }),
   };

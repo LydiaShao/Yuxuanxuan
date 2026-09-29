@@ -654,16 +654,22 @@ body.is-admin .wrap-pic.is-right .resize {
   pointer-events: auto;
   cursor: grab;
   touch-action: none;
+  --sprite-size: 1;
 }
 
 .sprite.is-dragging {
   cursor: grabbing;
+  animation: none;
+}
+
+.sprite:hover {
+  animation: sprite-hop 0.62s ease;
 }
 
 .sprite img {
   display: block;
   width: auto;
-  max-width: min(16rem, 34vw);
+  max-width: calc(min(16rem, 34vw) * var(--sprite-size));
   height: auto;
   pointer-events: none;
 }
@@ -763,8 +769,28 @@ textarea:focus-visible {
   }
 }
 
+@keyframes sprite-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  32% {
+    transform: translateY(-1.15rem);
+  }
+  58% {
+    transform: translateY(0);
+  }
+  74% {
+    transform: translateY(-0.42rem);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+
+  .sprite:hover {
+    animation: none;
   }
 }

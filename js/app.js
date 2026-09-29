@@ -155,6 +155,19 @@ function markupFrom(node) {
   return html;
 }
 
+function spriteFields(sprite) {
+  const size = Number(sprite.size);
+  const shown = Number.isFinite(size) && size > 0 ? size : 100;
+  const record = {
+    src: sprite.src,
+    x: Number(sprite.x) || 0,
+    y: Number(sprite.y) || 0,
+    rotate: Number(sprite.rotate) || 0,
+  };
+  if (shown !== 100) record.size = Math.round(Math.min(220, Math.max(20, shown)) * 10) / 10;
+  return record;
+}
+
 function payload() {
   YxPalette.stampIds(state.jobs);
   return {
@@ -171,12 +184,7 @@ function payload() {
         banner: job.banner || "",
         portrait: job.portrait || "",
         images: job.images,
-        sprites: (job.sprites || []).map((sprite) => ({
-          src: sprite.src,
-          x: Number(sprite.x) || 0,
-          y: Number(sprite.y) || 0,
-          rotate: Number(sprite.rotate) || 0,
-        })),
+        sprites: (job.sprites || []).map(spriteFields),
       };
     }),
   };
@@ -664,11 +672,21 @@ function renderSprites(job) {
   }
   layer.replaceChildren(
     ...(job.sprites || []).map((sprite, index) => {
+      const size = Number(sprite.size);
+      const scale = Number.isFinite(size) && size > 0 ? size / 100 : 1;
+      const image = h("img", {
+        alt: "",
+        style: `transform:rotate(${Number(sprite.rotate) || 0}deg)`,
+      });
       const figure = h(
         "figure",
-        { class: "sprite", style: `left:${Number(sprite.x) || 0}%;top:${Number(sprite.y) || 0}%;` },
-        h("img", { src: sprite.src, alt: "", style: `transform:rotate(${Number(sprite.rotate) || 0}deg)` })
+        {
+          class: "sprite",
+          style: `left:${Number(sprite.x) || 0}%;top:${Number(sprite.y) || 0}%;--sprite-size:${scale}`,
+        },
+        image
       );
+      bindGif(image, sprite.src);
       bindMenu(figure, sprite.src, {
         replace: () => replaceList(job, "sprites", index),
         turn: () => {
@@ -681,6 +699,28 @@ function renderSprites(job) {
       return figure;
     })
   );
+}
+
+function bindGif(image, src) {
+  const motion = /\.gif(?:$|[?#])/i.test(src);
+  if (!motion) {
+    image.src = src;
+    return;
+  }
+  const still = `/api/still?src=${encodeURIComponent(src)}`;
+  image.src = still;
+  image.addEventListener("error", () => {
+    if (image.getAttribute("src") !== src) image.src = src;
+  });
+  const figure = image.closest("figure");
+  const host = figure || image;
+  host.addEventListener("pointerenter", () => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    image.src = src;
+  });
+  host.addEventListener("pointerleave", () => {
+    if (!host.classList.contains("is-dragging")) image.src = still;
+  });
 }
 
 function bindDrag(figure, sprite) {
