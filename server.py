@@ -65,6 +65,7 @@ JOB_COLOR_LABELS = {
     "muted": "次要文字",
 }
 PICTURE_LOOK_KEYS = ("rotate", "flipX", "flipY", "round", "dissolve", "shadow", "ghost", "ghostColor", "shadowColor")
+PANEL_BACKGROUND = "#f4efe6"
 PANEL_TEXT = "#2a2420"
 MAX_IMAGES = 40
 MAX_BLOCKS = 16
