@@ -91,7 +91,7 @@ main#content {
   top: 0;
   z-index: 4;
   color: var(--bar-text);
-  background: none;
+  background: var(--bar);
   border-bottom: 0;
 }
 
@@ -101,13 +101,11 @@ main#content {
   z-index: 0;
   left: 0;
   right: 0;
-  top: 0;
-  bottom: calc(var(--fade) * -1);
-  background: color-mix(in srgb, var(--bar) 52%, transparent);
+  top: 100%;
+  height: var(--fade);
+  background: linear-gradient(to bottom, var(--bar), transparent);
   backdrop-filter: blur(16px);
   pointer-events: none;
-  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--fade)), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--fade)), transparent 100%);
 }
 
 .topbar.is-top::before {
