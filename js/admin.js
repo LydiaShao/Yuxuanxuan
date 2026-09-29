@@ -88,7 +88,7 @@ function editor() {
       { class: "panel" },
       h("h2", {}, "职业"),
       h("p", { class: "hint" }, "配色和文字在这里改，网页本身不加编辑条。页面背景就是横图渐变落到的颜色。顶栏用另一色。"),
-      h("p", { class: "hint" }, "头图在网页上会略降清晰度。右键可以打开原图；登录后右键还能替换这张图。小人在网页上拖动，右键转 90°。"),
+      h("p", { class: "hint" }, "头图在网页上会略降清晰度。右键可以打开原图；登录后右键还能替换这张图。小人在网页上拖动，右键转 90°。画廊和小人可以一次选多张。"),
       ...state.jobs.map((job, index) => jobCard(job, index)),
       h("button", { type: "button", onclick: addJob }, "添加职业")
     ),
@@ -261,7 +261,8 @@ function extraImages(job) {
   const input = h("input", {
     type: "file",
     accept: "image/jpeg,image/png,image/webp,image/gif",
-    onchange: (event) => uploadExtra(job, event.target.files[0], event.target),
+    multiple: "true",
+    onchange: (event) => uploadMany(job, "images", event.target.files, event.target),
   });
   return h(
     "div",
@@ -287,13 +288,14 @@ function spriteList(job) {
   const input = h("input", {
     type: "file",
     accept: "image/jpeg,image/png,image/webp,image/gif",
-    onchange: (event) => uploadSprite(job, event.target.files[0], event.target),
+    multiple: "true",
+    onchange: (event) => uploadMany(job, "sprites", event.target.files, event.target),
   });
   return h(
     "div",
     {},
     h("label", {}, "小人"),
-    h("p", { class: "hint" }, "上传后出现在网页上，不跟滚动。位置在网页上拖，右键转 90°。"),
+    h("p", { class: "hint" }, "上传后出现在网页上，不跟滚动。位置在网页上拖，右键转 90°。可以一次选多张。"),
     h(
       "div",
       { class: "extra-list" },
@@ -326,33 +328,41 @@ async function upload(job, key, file, input) {
   paint();
 }
 
-async function uploadExtra(job, file, input) {
-  if (!file) return;
-  state.error = "";
-  state.message = "正在上传…";
-  paint();
-  try {
-    job.images.push(await sendFile(file));
-    state.dirty = true;
-    state.message = "图片已按原文件保存，记得点保存。";
-  } catch (error) {
-    state.error = error.message;
+async function uploadMany(job, key, fileList, input) {
+  const files = [...fileList];
+  if (!files.length) return;
+  const limit = key === "sprites" ? 12 : 40;
+  const room = limit - job[key].length;
+  if (room <= 0) {
+    state.error = key === "sprites" ? "小人已经到 12 个" : "这一页的图片已经到 40 张";
+    input.value = "";
+    paint();
+    return;
   }
-  input.value = "";
-  paint();
-}
-
-async function uploadSprite(job, file, input) {
-  if (!file) return;
+  const batch = files.slice(0, room);
+  const skipped = files.length - batch.length;
   state.error = "";
-  state.message = "正在上传…";
+  state.message = `正在上传 1/${batch.length}…`;
   paint();
   try {
-    job.sprites.push({ src: await sendFile(file), x: 8 + job.sprites.length * 6, y: 20, rotate: 0 });
-    state.dirty = true;
-    state.message = "小人已上传，记得点保存。";
+    for (let index = 0; index < batch.length; index += 1) {
+      state.message = `正在上传 ${index + 1}/${batch.length}…`;
+      const path = await sendFile(batch[index]);
+      if (key === "sprites") {
+        const count = job.sprites.length;
+        job.sprites.push({ src: path, x: 8 + (count % 6) * 8, y: 18 + Math.floor(count / 6) * 12, rotate: 0 });
+      } else {
+        job.images.push(path);
+      }
+      state.dirty = true;
+    }
+    const noun = key === "sprites" ? "个小人" : "张图片";
+    state.message = skipped
+      ? `已上传 ${batch.length} ${noun}，剩下 ${skipped} 个超出上限，没有加入。记得点保存。`
+      : `已上传 ${batch.length} ${noun}，记得点保存。`;
   } catch (error) {
     state.error = error.message;
+    state.message = "";
   }
   input.value = "";
   paint();
@@ -501,13 +511,6 @@ async function openEditor() {
   state.error = "";
   paint();
 }
-
-function syncTopbar() {
-  document.querySelector(".topbar")?.classList.toggle("is-scrolled", window.scrollY > 8);
-}
-
-window.addEventListener("scroll", syncTopbar, { passive: true });
-syncTopbar();
 
 window.addEventListener("beforeunload", (event) => {
   if (!state.dirty) return;

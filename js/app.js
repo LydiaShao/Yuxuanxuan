@@ -177,7 +177,13 @@ function renderJob(job) {
     h(
       "h1",
       {},
-      h("span", { class: "name-ornament", "aria-hidden": "true" }, h("span")),
+      h(
+        "span",
+        { class: "name-ornament", "aria-hidden": "true" },
+        h("span", { class: "gem gem-side" }),
+        h("span", { class: "gem" }),
+        h("span", { class: "gem gem-side" })
+      ),
       h("span", { class: "name-text" }, job.name)
     ),
     job.tagline ? h("p", { class: "tagline" }, job.tagline) : null
@@ -351,16 +357,10 @@ function paint() {
   window.scrollTo(0, scroll);
 }
 
-function syncTopbar() {
-  document.querySelector(".topbar")?.classList.toggle("is-scrolled", window.scrollY > 8);
-}
-
 document.addEventListener("pointerdown", (event) => {
   if (!event.target.closest(".image-menu")) closeMenu();
 });
 window.addEventListener("hashchange", () => paint());
-window.addEventListener("scroll", syncTopbar, { passive: true });
-syncTopbar();
 
 async function boot() {
   const main = document.getElementById("content");
