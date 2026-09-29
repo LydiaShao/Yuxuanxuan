@@ -788,10 +788,14 @@ class Handler(BaseHTTPRequestHandler):
         return self.rfile.read(length)
 
     def same_origin(self):
+        host = self.headers.get("Host") or ""
         origin = self.headers.get("Origin")
-        if not origin:
+        if origin:
+            return urlparse(origin).netloc == host
+        referer = self.headers.get("Referer")
+        if not referer:
             return False
-        return urlparse(origin).netloc == self.headers.get("Host")
+        return urlparse(referer).netloc == host
 
     def require_admin(self):
         if self.headers.get("X-Admin") != "1" or not self.same_origin():

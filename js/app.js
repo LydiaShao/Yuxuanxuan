@@ -190,8 +190,38 @@ function payload() {
   };
 }
 
-async function persist() {
-  if (!state.admin) return;
+let persistChain = Promise.resolve();
+
+function persist() {
+  if (!state.admin) return Promise.resolve();
+  persistChain = persistChain.then(writeSite, writeSite);
+  return persistChain;
+}
+
+function keepSprites(current, incoming) {
+  const sprites = Array.isArray(current) ? current : [];
+  const next = Array.isArray(incoming) ? incoming : [];
+  next.forEach((item, index) => {
+    if (sprites[index]) Object.assign(sprites[index], item);
+    else sprites[index] = item;
+  });
+  sprites.length = next.length;
+  return sprites;
+}
+
+function adoptSaved(freshJobs) {
+  const prev = state.jobs;
+  state.jobs = (freshJobs || []).map((fresh) => {
+    const cur = prev.find((item) => item.id === fresh.id) || prev.find((item) => item.name === fresh.name);
+    if (!cur) return fresh;
+    const sprites = keepSprites(cur.sprites, fresh.sprites);
+    Object.assign(cur, fresh);
+    cur.sprites = sprites;
+    return cur;
+  });
+}
+
+async function writeSite() {
   const { job, explicit } = selected(state.jobs);
   const watching = explicit && job;
   const saved = await api("/api/site", {
@@ -199,7 +229,7 @@ async function persist() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload()),
   });
-  state.jobs = saved.jobs;
+  adoptSaved(saved.jobs);
   if (watching) {
     const next = saved.jobs.find((item) => item.id === job.id) || saved.jobs.find((item) => item.name === job.name);
     if (next && location.hash !== `#/job/${encodeURIComponent(next.id)}`) {
@@ -789,6 +819,29 @@ function bindGif(image, src, scale) {
 
 function bindDrag(figure, sprite) {
   let drag = null;
+  let saveTimer = 0;
+
+  function remember() {
+    const rect = figure.getBoundingClientRect();
+    const width = window.innerWidth || 1;
+    const height = window.innerHeight || 1;
+    sprite.x = Math.round(Math.min(92, Math.max(0, (rect.left / width) * 100)) * 100) / 100;
+    sprite.y = Math.round(Math.min(92, Math.max(0, (rect.top / height) * 100)) * 100) / 100;
+  }
+
+  function saveNow() {
+    if (!state.admin) return;
+    window.clearTimeout(saveTimer);
+    persist().catch((error) => window.alert(error.message));
+  }
+
+  function saveSoon() {
+    if (!state.admin) return;
+    remember();
+    window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(saveNow, 160);
+  }
+
   figure.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
     drag = {
@@ -796,25 +849,33 @@ function bindDrag(figure, sprite) {
       y: event.clientY,
       left: figure.getBoundingClientRect().left,
       top: figure.getBoundingClientRect().top,
+      moved: false,
     };
     figure.setPointerCapture(event.pointerId);
-    figure.classList.add("is-dragging");
   });
   figure.addEventListener("pointermove", (event) => {
     if (!drag) return;
-    figure.style.left = `${drag.left + event.clientX - drag.x}px`;
-    figure.style.top = `${drag.top + event.clientY - drag.y}px`;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      figure.classList.add("is-dragging");
+    }
+    figure.style.left = `${drag.left + dx}px`;
+    figure.style.top = `${drag.top + dy}px`;
+    saveSoon();
   });
   const finish = () => {
     if (!drag) return;
+    const moved = drag.moved;
     drag = null;
     figure.classList.remove("is-dragging");
-    const rect = figure.getBoundingClientRect();
-    sprite.x = Math.round(Math.min(92, Math.max(0, (rect.left / window.innerWidth) * 100)) * 100) / 100;
-    sprite.y = Math.round(Math.min(92, Math.max(0, (rect.top / window.innerHeight) * 100)) * 100) / 100;
+    if (!moved) return;
+    remember();
     figure.style.left = `${sprite.x}%`;
     figure.style.top = `${sprite.y}%`;
-    if (state.admin) persist().catch((error) => window.alert(error.message));
+    saveNow();
   };
   figure.addEventListener("pointerup", finish);
   figure.addEventListener("pointercancel", finish);
