@@ -158,6 +158,7 @@ button:disabled {
 }
 
 .uploads .banner,
+.uploads .sash,
 .uploads .stamp {
   width: 100%;
   margin: 0;
@@ -172,6 +173,7 @@ button:disabled {
 }
 
 .uploads .banner img,
+.uploads .sash img,
 .uploads .stamp img {
   width: 100%;
   height: auto;
@@ -193,12 +195,17 @@ button:disabled {
 
 .uploads {
   display: grid;
-  grid-template-columns: 1.6fr 0.7fr;
+  grid-template-columns: 1.35fr 0.95fr 0.7fr;
   gap: 0.8rem;
   margin-top: 0.8rem;
 }
 
+.uploads > :last-child {
+  grid-column: 1 / -1;
+}
+
 .uploads .banner,
+.uploads .sash,
 .uploads .stamp {
   margin: 0;
   width: 100%;

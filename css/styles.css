@@ -258,6 +258,40 @@ main#content {
   pointer-events: none;
 }
 
+.job > .sash {
+  position: fixed;
+  top: 0;
+  z-index: 4;
+  margin: 0;
+  height: 100vh;
+  width: auto;
+  max-width: min(26vw, 19rem);
+  pointer-events: none;
+}
+
+.job.side-left > .sash {
+  left: 0;
+}
+
+.job.side-right > .sash {
+  right: 0;
+}
+
+.job > .sash img {
+  display: block;
+  height: 100vh;
+  width: auto;
+  max-width: min(26vw, 19rem);
+  object-fit: contain;
+  object-position: top center;
+  pointer-events: auto;
+  filter: drop-shadow(0.25rem 0.4rem 0.7rem rgba(18, 12, 16, 0.28));
+}
+
+.job.side-right > .sash img {
+  filter: drop-shadow(-0.25rem 0.4rem 0.7rem rgba(18, 12, 16, 0.28));
+}
+
 .stage {
   position: relative;
   z-index: 1;
@@ -887,6 +921,11 @@ textarea:focus-visible {
     width: calc(100% - 1.4rem);
     margin-left: 0.7rem;
     margin-right: 0.7rem;
+  }
+
+  .job > .sash,
+  .job > .sash img {
+    max-width: min(34vw, 9.5rem);
   }
 
   .story,

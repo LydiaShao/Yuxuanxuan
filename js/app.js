@@ -212,6 +212,7 @@ function payload() {
         body: dedupeBodyImages(job).map((item) => (item.type === "image" ? imagePayload(item) : textPayload(item))),
         blocks: job.blocks,
         banner: job.banner || "",
+        sash: job.sash || "",
         portrait: job.portrait || "",
         bgm: job.bgm || "",
         images: job.images,
@@ -331,6 +332,11 @@ function bannerDisplay(src) {
   return displayPath(src, pixels, 90);
 }
 
+function sashDisplay(src) {
+  const tall = window.innerHeight * (window.devicePixelRatio || 1);
+  return displayPath(src, Math.max(tall * 1.15, 1080), 90);
+}
+
 function galleryDisplay(src) {
   return src;
 }
@@ -448,6 +454,12 @@ function renderJob(job) {
     display: bannerDisplay(job.banner),
     replace: () => replaceSlot(job, "banner"),
   });
+  const sash = plate("sash", job.sash, `${job.name} sash`, {
+    kind: "sash",
+    display: sashDisplay(job.sash),
+    replace: () => replaceSlot(job, "sash"),
+    remove: () => clearSlot(job, "sash"),
+  });
   const portrait = plate("portrait", job.portrait, `${job.name} portrait`, {
     replace: () => replaceSlot(job, "portrait"),
   });
@@ -473,8 +485,9 @@ function renderJob(job) {
   );
   return h(
     "article",
-    { class: `job side-${side}${job.banner ? " has-cover" : ""}` },
+    { class: `job side-${side}${job.banner ? " has-cover" : ""}${job.sash ? " has-sash" : ""}` },
     banner,
+    sash,
     h(
       "div",
       { class: "stage" },
@@ -1178,7 +1191,7 @@ function refreshPictures() {
     if (image.dataset.fellback) return;
     const src = image.dataset.original;
     if (!src) return;
-    const next = image.dataset.kind === "banner" ? bannerDisplay(src) : src;
+    const next = image.dataset.kind === "banner" ? bannerDisplay(src) : image.dataset.kind === "sash" ? sashDisplay(src) : src;
     if (image.getAttribute("src") !== next) image.src = next;
   });
 }
@@ -1188,6 +1201,16 @@ async function replaceSlot(job, key) {
   if (!file) return;
   try {
     job[key] = await uploadFile(file);
+    await persist();
+    paint();
+  } catch (error) {
+    window.alert(error.message);
+  }
+}
+
+async function clearSlot(job, key) {
+  try {
+    job[key] = "";
     await persist();
     paint();
   } catch (error) {

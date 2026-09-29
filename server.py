@@ -607,6 +607,7 @@ def clean_job(job, strict=True, looks=None):
         "body": body,
         "blocks": blocks,
         "banner": clean_image(job.get("banner"), strict),
+        "sash": clean_image(job.get("sash"), strict),
         "portrait": clean_image(job.get("portrait"), strict),
         "bgm": clean_image(job.get("bgm"), strict),
         "images": images,

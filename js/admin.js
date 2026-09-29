@@ -191,10 +191,11 @@ function jobCard(job, index) {
       "div",
       { class: "uploads" },
       uploadSlot(job, "banner", "横版插图", "banner"),
+      uploadSlot(job, "sash", "竖插绶带", "sash"),
       uploadSlot(job, "portrait", "方邮票头像", "stamp"),
       bgmSlot(job)
     ),
-    h("p", { class: "hint" }, "正文和图片在职业页面上改。管理员打开那一页后可以直接写；右键加字、加图片、换图或去掉。图片可以拖动，角落可以放大缩小。"),
+    h("p", { class: "hint" }, "横图可空。竖插会像绶带钉在邮票那一侧，滚动时不走。正文和图片在职业页面上改。管理员打开那一页后可以直接写；右键加字、加图片、换图或去掉。图片可以拖动，角落可以放大缩小。"),
     spriteList(job),
     h(
       "div",
@@ -409,6 +410,7 @@ function addJob() {
     colors: YxPalette.jobColors({}),
     blocks: [],
     banner: "",
+    sash: "",
     portrait: "",
     bgm: "",
     images: [],
@@ -483,6 +485,7 @@ function payload() {
           color: item.color,
         })),
         banner: job.banner || "",
+        sash: job.sash || "",
         portrait: job.portrait || "",
         bgm: job.bgm || "",
         images: body.filter((item) => item.type === "image").map((item) => item.src),
