@@ -130,8 +130,32 @@ function ensureBody(job) {
   return body;
 }
 
+function raiseBody(job, item) {
+  const body = ensureBody(job);
+  const at = body.indexOf(item);
+  if (at < 0 || at === body.length - 1) return;
+  body.splice(at, 1);
+  body.push(item);
+}
+
+function dedupeBodyImages(job) {
+  const body = ensureBody(job);
+  const last = new Map();
+  body.forEach((item, index) => {
+    if (item.type === "image" && item.src) last.set(item.src, index);
+  });
+  let write = 0;
+  body.forEach((item, index) => {
+    if (item.type === "image" && last.get(item.src) !== index) return;
+    body[write] = item;
+    write += 1;
+  });
+  body.length = write;
+  return body;
+}
+
 function syncDerived(job) {
-  ensureBody(job);
+  dedupeBodyImages(job);
   job.blocks = job.body.filter((item) => item.type === "text").map((item) => ({
     text: item.text || "",
     background: cssHex(item.background, "#f4efe6"),
@@ -180,7 +204,7 @@ function payload() {
         align: job.align === "right" ? "right" : "left",
         tagline: (job.tagline || "").trim(),
         colors: YxPalette.jobColors(job),
-        body: ensureBody(job).map((item) => (item.type === "image" ? imagePayload(item) : textPayload(item))),
+        body: dedupeBodyImages(job).map((item) => (item.type === "image" ? imagePayload(item) : textPayload(item))),
         blocks: job.blocks,
         banner: job.banner || "",
         portrait: job.portrait || "",
@@ -428,7 +452,7 @@ function renderJob(job) {
 }
 
 function renderStory(job) {
-  ensureBody(job);
+  dedupeBodyImages(job);
   ensureFreePlace(job);
   const flow = h("div", { class: "story-text" });
   job.body.forEach((item, index) => {
@@ -607,7 +631,7 @@ function bindFreeDrag(node, job, item, grab) {
       const flow = node.parentElement.getBoundingClientRect();
       node.style.left = `${drag.left - flow.left}px`;
       node.style.top = `${drag.top - flow.top}px`;
-      job.body = job.body.filter((entry) => entry !== item).concat(item);
+      raiseBody(job, item);
     }
     const flow = node.parentElement.getBoundingClientRect();
     node.style.left = `${drag.left + dx - flow.left}px`;

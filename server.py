@@ -447,6 +447,15 @@ def parse_body(raw, strict):
             if y is not None:
                 block["y"] = y
             body.append(block)
+    last_picture = {}
+    for index, item in enumerate(body):
+        if item["type"] == "image":
+            last_picture[item["src"]] = index
+    body = [
+        item
+        for index, item in enumerate(body)
+        if item["type"] != "image" or last_picture.get(item["src"]) == index
+    ]
     blocks = [
         {"text": item["text"], "background": item["background"], "color": item["color"]}
         for item in body

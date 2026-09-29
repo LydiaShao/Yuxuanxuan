@@ -233,6 +233,22 @@ function ensureBody(job) {
   return body;
 }
 
+function dedupeBodyImages(job) {
+  const body = ensureBody(job);
+  const last = new Map();
+  body.forEach((item, index) => {
+    if (item.type === "image" && item.src) last.set(item.src, index);
+  });
+  let write = 0;
+  body.forEach((item, index) => {
+    if (item.type === "image" && last.get(item.src) !== index) return;
+    body[write] = item;
+    write += 1;
+  });
+  body.length = write;
+  return body;
+}
+
 function uploadSlot(job, key, label, frameClass) {
   const input = h("input", {
     type: "file",
@@ -398,7 +414,7 @@ function payload() {
   YxPalette.stampIds(state.jobs);
   return {
     jobs: state.jobs.map((job) => {
-      const body = ensureBody(job).map((item) => {
+      const body = dedupeBodyImages(job).map((item) => {
         if (item.type !== "image") {
           const record = {
             type: "text",
