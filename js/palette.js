@@ -42,7 +42,33 @@
     return colors;
   }
 
-  global.YxPalette = { JOB_DEFAULTS, jobColors, applyJobColors, hex };
+  function slug(name, taken) {
+    const base = String(name || "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40) || "job";
+    const used = taken instanceof Set ? taken : new Set(taken || []);
+    let id = base;
+    let n = 2;
+    while (used.has(id)) {
+      id = `${base}-${n}`.slice(0, 40);
+      n += 1;
+    }
+    return id;
+  }
+
+  function stampIds(jobs) {
+    const used = new Set();
+    for (const job of jobs || []) {
+      job.id = slug(job.name, used);
+      used.add(job.id);
+    }
+    return jobs;
+  }
+
+  global.YxPalette = { JOB_DEFAULTS, jobColors, applyJobColors, hex, slug, stampIds };
 })(window);
 
 (function () {

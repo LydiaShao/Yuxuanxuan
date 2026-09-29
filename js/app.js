@@ -147,6 +147,7 @@ function markupFrom(node) {
 }
 
 function payload() {
+  YxPalette.stampIds(state.jobs);
   return {
     jobs: state.jobs.map((job) => {
       syncDerived(job);
@@ -174,12 +175,20 @@ function payload() {
 
 async function persist() {
   if (!state.admin) return;
+  const { job, explicit } = selected(state.jobs);
+  const watching = explicit && job;
   const saved = await api("/api/site", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload()),
   });
   state.jobs = saved.jobs;
+  if (watching) {
+    const next = saved.jobs.find((item) => item.id === job.id) || saved.jobs.find((item) => item.name === job.name);
+    if (next && location.hash !== `#/job/${encodeURIComponent(next.id)}`) {
+      history.replaceState(null, "", `#/job/${encodeURIComponent(next.id)}`);
+    }
+  }
 }
 
 function quantizeEdge(edge) {

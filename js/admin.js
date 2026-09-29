@@ -165,6 +165,8 @@ function jobCard(job, index) {
     h("p", { class: "hint" }, `#/job/${job.id}`),
     field("导航名称（英文）", job.name, (value) => {
       job.name = value;
+      const taken = state.jobs.filter((item) => item !== job).map((item) => item.id);
+      job.id = YxPalette.slug(value, taken);
     }),
     field("一句短文", job.tagline, (value) => {
       job.tagline = value;
@@ -339,15 +341,8 @@ function removeSprite(job, index) {
 }
 
 function slugify(name) {
-  const base = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "job";
-  let id = base.slice(0, 40);
-  let n = 2;
   const taken = new Set(state.jobs.map((job) => job.id));
-  while (taken.has(id)) {
-    id = `${base}-${n}`.slice(0, 40);
-    n += 1;
-  }
-  return id;
+  return YxPalette.slug(name, taken);
 }
 
 function addJob() {
@@ -385,6 +380,7 @@ function removeJob(index) {
 }
 
 function payload() {
+  YxPalette.stampIds(state.jobs);
   return {
     jobs: state.jobs.map((job) => {
       const body = ensureBody(job).map((item) => {
