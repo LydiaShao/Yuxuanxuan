@@ -26,6 +26,7 @@
       const fade = hex(bag.fade || source.color);
       if (fade) colors.background = fade;
     }
+    colors.text = colors.bar;
     return colors;
   }
 

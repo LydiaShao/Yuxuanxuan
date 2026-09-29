@@ -54,7 +54,7 @@ DEFAULT_JOB_COLORS = {
 JOB_COLOR_KEYS = ("background", "bar", "barText", "text", "muted")
 JOB_COLOR_LABELS = {
     "background": "页面背景",
-    "bar": "顶栏",
+    "bar": "顶栏底色",
     "barText": "顶栏文字",
     "text": "文字",
     "muted": "次要文字",
@@ -552,6 +552,7 @@ def clean_job(job, strict=True):
             inherited = str(theme.get("text") or "").strip()
             if HEX.match(inherited):
                 colors["barText"] = inherited.lower()
+    colors["text"] = colors["bar"]
     return {
         "id": job_id,
         "name": name,
