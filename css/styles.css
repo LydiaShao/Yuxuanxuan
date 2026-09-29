@@ -66,7 +66,7 @@ textarea {
   position: absolute;
   left: 1rem;
   top: -4rem;
-  z-index: 5;
+  z-index: 21;
   background: var(--accent);
   color: var(--on-accent);
   padding: 0.4rem 0.7rem;
@@ -101,7 +101,7 @@ main#content {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 4;
+  z-index: 20;
   color: var(--bar-text);
   background: color-mix(in srgb, var(--bar) 52%, transparent);
   backdrop-filter: blur(22px);
@@ -259,6 +259,8 @@ main#content {
 }
 
 .stage {
+  position: relative;
+  z-index: 1;
   width: min(1120px, calc(100% - 8vw));
   margin: 0 0 0 4vw;
   padding-top: 1.4rem;
@@ -273,6 +275,8 @@ main#content {
 }
 
 .identity {
+  position: relative;
+  z-index: 6;
   display: flex;
   align-items: flex-end;
   gap: 1.35rem;
@@ -474,6 +478,8 @@ h1 {
 }
 
 .story {
+  position: relative;
+  z-index: 1;
   width: calc(var(--page) - 2 * var(--edge));
   margin-top: 1.6rem;
   margin-left: calc(var(--edge) - 4vw);
@@ -532,7 +538,7 @@ body.is-admin .drag {
 }
 
 body.is-admin .panel.is-dragging {
-  z-index: 40;
+  z-index: 5;
   cursor: grabbing;
   opacity: 0.96;
 }
@@ -632,7 +638,7 @@ body.is-admin .panel.is-right .resize {
 }
 
 body.is-admin .wrap-pic.is-dragging {
-  z-index: 40;
+  z-index: 5;
   cursor: grabbing;
   opacity: 0.96;
 }
@@ -678,13 +684,13 @@ body.is-admin .wrap-pic.is-dragging {
 .sprites {
   position: fixed;
   inset: 0;
-  z-index: 5;
+  z-index: 30;
   pointer-events: none;
 }
 
 .sprite {
   position: fixed;
-  z-index: 5;
+  z-index: 30;
   margin: 0;
   pointer-events: auto;
   cursor: grab;
@@ -715,7 +721,7 @@ body.is-admin .wrap-pic.is-dragging {
 
 .image-menu {
   position: fixed;
-  z-index: 8;
+  z-index: 40;
   min-width: 9.5rem;
   margin: 0;
   padding: 0.25rem;
@@ -761,7 +767,7 @@ body.is-admin .wrap-pic.is-dragging {
 
 .fx-catalog {
   position: fixed;
-  z-index: 9;
+  z-index: 41;
   box-sizing: border-box;
   width: min(18.5rem, calc(100vw - 1rem));
   padding: 0.7rem 0.75rem 0.8rem;

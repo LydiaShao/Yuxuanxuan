@@ -537,11 +537,63 @@ function ensureFreePlace(job) {
 function applyFreePlace(node, item, flow) {
   const width = Number(item.w);
   const fallback = item.type === "image" ? 46 : 56;
-  node.style.width = `${Number.isFinite(width) && width > 0 ? Math.min(100, Math.max(8, width)) : fallback}%`;
-  node.style.left = `${Math.min(100, Math.max(0, Number(item.x) || 0))}%`;
+  const shown = Number.isFinite(width) && width > 0 ? Math.min(100, Math.max(8, width)) : fallback;
+  node.style.width = `${shown}%`;
   const column = flow.clientWidth || 1;
-  node.style.top = `${(Math.min(800, Math.max(0, Number(item.y) || 0)) / 100) * column}px`;
+  const placed = clampInFlow(
+    node,
+    item,
+    flow,
+    ((Number(item.x) || 0) / 100) * column,
+    ((Number(item.y) || 0) / 100) * column
+  );
+  item.w = shown;
+  item.x = Math.round((placed.left / column) * 10000) / 100;
+  item.y = Math.round((placed.top / column) * 10000) / 100;
+  node.style.left = `${item.x}%`;
+  node.style.top = `${placed.top}px`;
   if (item.type === "image") applyPicFx(node, item);
+}
+
+function identityBox(flow) {
+  const keep = document.querySelector(".identity");
+  if (!keep || !flow) return null;
+  const ir = keep.getBoundingClientRect();
+  const fr = flow.getBoundingClientRect();
+  return {
+    left: ir.left - fr.left,
+    top: ir.top - fr.top,
+    right: ir.right - fr.left,
+    bottom: ir.bottom - fr.top,
+  };
+}
+
+function overlapsKeep(left, top, width, height, keep) {
+  return left < keep.right && left + width > keep.left && top < keep.bottom && top + height > keep.top;
+}
+
+function clampInFlow(node, item, flow, left, top) {
+  const column = flow.clientWidth || 1;
+  const width = Math.min(column, node.offsetWidth || (column * ((Number(item.w) || 46) / 100)));
+  const height = node.offsetHeight || 1;
+  left = Math.min(Math.max(0, left), Math.max(0, column - width));
+  top = Math.min((800 / 100) * column, Math.max(0, top));
+  if (item.type !== "image") return { left, top };
+  const keep = identityBox(flow);
+  if (!keep || !overlapsKeep(left, top, width, height, keep)) return { left, top };
+  const maxLeft = Math.max(0, column - width);
+  const options = [
+    { left, top: Math.max(0, keep.bottom), d: Math.abs(keep.bottom - top) },
+    { left: Math.max(0, keep.left - width), top, d: Math.abs(left - (keep.left - width)) },
+    { left: Math.min(maxLeft, keep.right), top, d: Math.abs(keep.right - left) },
+  ].map((opt) => ({
+    left: Math.min(maxLeft, Math.max(0, opt.left)),
+    top: Math.max(0, opt.top),
+    d: opt.d,
+  }));
+  const clear = options.filter((opt) => !overlapsKeep(opt.left, opt.top, width, height, keep));
+  const pick = (clear.length ? clear : options).sort((a, b) => a.d - b.d)[0];
+  return pick || { left, top };
 }
 
 function pinStory() {
@@ -872,7 +924,7 @@ function bindFreeDrag(node, job, item, grab) {
     if (grab && !event.target.closest(grab)) return;
     const rect = node.getBoundingClientRect();
     drag = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moved: false };
-    node.style.zIndex = "40";
+    node.style.zIndex = "5";
     event.preventDefault();
     try { node.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
   });
@@ -890,8 +942,9 @@ function bindFreeDrag(node, job, item, grab) {
       raiseBody(job, item);
     }
     const flow = node.parentElement.getBoundingClientRect();
-    node.style.left = `${drag.left + dx - flow.left}px`;
-    node.style.top = `${drag.top + dy - flow.top}px`;
+    const placed = clampInFlow(node, item, node.parentElement, drag.left + dx - flow.left, drag.top + dy - flow.top);
+    node.style.left = `${placed.left}px`;
+    node.style.top = `${placed.top}px`;
     remember();
   });
   const finish = () => {
@@ -941,6 +994,7 @@ function bindWrapResize(handle, figure, job, item) {
     window.removeEventListener("pointercancel", finish);
     if (percent == null) return;
     item.w = percent;
+    if ((Number(item.x) || 0) + item.w > 100) item.x = Math.max(0, Math.round((100 - item.w) * 100) / 100);
     const flow = figure.parentElement;
     if (flow) applyFreePlace(figure, item, flow);
     if (item.type === "image") refreshPictures();
