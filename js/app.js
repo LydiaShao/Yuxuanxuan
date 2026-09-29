@@ -257,11 +257,8 @@ function spriteDisplay(src, scale) {
   return `/api/display?${params}`;
 }
 
-function spriteStill(src, scale) {
-  const params = new URLSearchParams({
-    src,
-    w: String(quantizeSprite(spriteEdge(scale))),
-  });
+function spriteStill(src) {
+  const params = new URLSearchParams({ src });
   return `/api/still?${params}`;
 }
 
@@ -742,7 +739,7 @@ function bindGif(image, src, scale) {
     });
     return;
   }
-  const still = spriteStill(src, scale);
+  const still = spriteStill(src);
   image.src = still;
   image.addEventListener("error", () => {
     if (image.getAttribute("src") !== src) image.src = src;

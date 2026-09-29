@@ -595,28 +595,27 @@ def soften_image(source, edge, quality):
         return target
 
 
-def still_frame(source, edge):
+def still_frame(source):
     try:
         from PIL import Image
     except ImportError:
         return source
     stamp = source.stat().st_mtime_ns
-    target = DISPLAYS / f"{source.stem}-{stamp}-still-{edge}.png"
+    target = DISPLAYS / f"{source.stem}-{stamp}-still.png"
     if target.is_file():
         return target
     DISPLAYS.mkdir(parents=True, exist_ok=True)
     with Image.open(source) as image:
         if not (getattr(image, "is_animated", False) and getattr(image, "n_frames", 1) > 1):
-            return soften_image(source, edge, 74)
+            return source
         image.seek(0)
         frame = image.convert("RGBA")
-        frame.thumbnail((edge, edge), Image.Resampling.LANCZOS)
         temporary = target.with_suffix(target.suffix + ".part")
         frame.save(temporary, format="PNG", optimize=True)
         temporary.replace(target)
-    prefix = f"{source.stem}-{stamp}-still-"
-    for stale in DISPLAYS.glob(f"{source.stem}-*-still-*.png"):
-        if not stale.name.startswith(prefix):
+    prefix = f"{source.stem}-{stamp}-still"
+    for stale in DISPLAYS.glob(f"{source.stem}-*-still*.png"):
+        if stale.stem != prefix:
             stale.unlink(missing_ok=True)
     return target
 
@@ -963,7 +962,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         source = ROOT / cleaned
         try:
-            path = still_frame(source, requested_edge((params.get("w") or [""])[0]))
+            path = still_frame(source)
         except Exception:
             path = source
         blob = path.read_bytes()
