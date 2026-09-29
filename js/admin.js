@@ -1,28 +1,6 @@
 "use strict";
 
-const SITE_FIELDS = [
-  ["background", "背景"],
-  ["surface", "面板"],
-  ["text", "文字"],
-  ["muted", "次要文字"],
-  ["accent", "点缀"],
-  ["onAccent", "按钮文字"],
-];
-const JOB_FIELDS = [
-  ["background", "页面背景"],
-  ["fade", "渐变"],
-  ["text", "文字"],
-  ["muted", "次要文字"],
-];
-
-const state = {
-  mode: "loading",
-  theme: YxPalette.siteColors({}),
-  jobs: [],
-  message: "",
-  error: "",
-  dirty: false,
-};
+const state = { mode: "loading", message: "", error: "" };
 
 function h(tag, props, ...children) {
   const node = document.createElement(tag);
@@ -39,14 +17,6 @@ function h(tag, props, ...children) {
   return node;
 }
 
-function cssColor(value, fallback) {
-  return /^#[0-9a-fA-F]{6}$/.test(value || "") ? value : fallback;
-}
-
-function applyTheme(theme) {
-  YxPalette.applySiteScheme(theme || {});
-}
-
 async function api(path, options = {}) {
   const headers = { "X-Admin": "1", ...(options.headers || {}) };
   const response = await fetch(path, { ...options, headers, credentials: "same-origin" });
@@ -55,356 +25,59 @@ async function api(path, options = {}) {
   return data;
 }
 
-function slugify(name, jobs) {
-  const base = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "job";
-  let id = base;
-  let n = 2;
-  const taken = new Set(jobs.map((job) => job.id));
-  while (taken.has(id)) {
-    id = `${base}-${n}`;
-    n += 1;
-  }
-  return id.slice(0, 40);
-}
-
 function paint() {
-  applyTheme(state.theme);
   const root = document.getElementById("admin");
   if (state.mode === "loading") {
     root.replaceChildren(h("p", { class: "hint" }, "正在打开后台…"));
     return;
   }
-  if (state.mode === "setup") root.replaceChildren(gate("设置管理员密码", "第一次打开后台时设置。密码至少 8 位，之后用它登录。", "设置并进入", submitSetup));
-  else if (state.mode === "login") root.replaceChildren(gate("登录", "输入管理员密码。", "登录", submitLogin));
-  else root.replaceChildren(editor());
-}
-
-function gate(title, copy, buttonLabel, onSubmit) {
-  const password = h("input", { type: "password", id: "password", autocomplete: state.mode === "setup" ? "new-password" : "current-password", required: "true" });
-  const form = h(
-    "form",
-    {
-      class: "gate",
-      onsubmit: (event) => {
-        event.preventDefault();
-        onSubmit(password.value);
+  if (state.mode === "ready") {
+    root.replaceChildren(
+      h(
+        "section",
+        { class: "gate" },
+        h("p", { class: "kicker" }, "Admin"),
+        h("h1", {}, "已经登录"),
+        h("p", { class: "hint" }, "回到网页上直接改。游客只能浏览，也可以拖动和旋转小人。"),
+        h("div", { class: "toolbar" }, h("a", { class: "text-link", href: "/" }, "回到网页"), h("button", { type: "button", onclick: logout }, "退出")),
+        messageNode()
+      )
+    );
+    return;
+  }
+  const setup = state.mode === "setup";
+  const password = h("input", {
+    type: "password",
+    id: "password",
+    autocomplete: setup ? "new-password" : "current-password",
+    required: "true",
+  });
+  root.replaceChildren(
+    h(
+      "form",
+      {
+        class: "gate",
+        onsubmit: (event) => {
+          event.preventDefault();
+          submit(setup ? "/api/setup" : "/api/login", password.value);
+        },
       },
-    },
-    h("p", { class: "kicker" }, "Admin"),
-    h("h1", {}, title),
-    h("p", { class: "hint" }, copy),
-    h("label", { for: "password" }, "密码"),
-    password,
-    h("div", { class: "toolbar" }, h("button", { class: "primary", type: "submit" }, buttonLabel)),
-    messageNode()
+      h("p", { class: "kicker" }, "Admin"),
+      h("h1", {}, setup ? "设置管理员密码" : "登录"),
+      h("p", { class: "hint" }, setup ? "第一次打开时设置。密码至少 8 位。登录后在网页上编辑。" : "登录后在网页上编辑图片和文字。"),
+      h("label", { for: "password" }, "密码"),
+      password,
+      h("div", { class: "toolbar" }, h("button", { class: "primary", type: "submit" }, setup ? "设置并进入" : "登录")),
+      messageNode()
+    )
   );
-  return form;
 }
 
 function messageNode() {
   return h("p", { class: state.error ? "status is-error" : "status", role: "status" }, state.error || state.message);
 }
 
-function editor() {
-  return h(
-    "div",
-    { class: "editor" },
-    h(
-      "section",
-      { class: "panel" },
-      h("h2", {}, "网站配色"),
-      h("p", { class: "hint" }, "所有职业共用。每一项都是页面上的实际颜色，改哪一项就变哪一项。"),
-      colorGrid(SITE_FIELDS, state.theme, () => applyTheme(state.theme))
-    ),
-    h(
-      "section",
-      { class: "panel" },
-      h("h2", {}, "职业"),
-      h("p", { class: "hint" }, "顶栏按这里的顺序显示英文职业名。横图铺满页面，底部渐变成这一页的职业色。头像不加框。横版和头像可以不传。故事下面还能再加图。"),
-      h("p", { class: "hint" }, "图片按原文件保存，不压缩，不限制大小。想保持无损，请用 PNG。"),
-      ...state.jobs.map((job, index) => jobCard(job, index)),
-      h("button", { type: "button", onclick: addJob }, "添加职业")
-    ),
-    h("div", { class: "toolbar" }, h("button", { class: "primary", type: "button", onclick: save }, "保存"), h("button", { type: "button", onclick: logout }, "退出"), messageNode())
-  );
-}
-
-function colorGrid(fields, bag, after) {
-  return h(
-    "div",
-    { class: "color-grid" },
-    ...fields.map(([key, label]) =>
-      colorRow(label, bag[key], (next, input) => {
-        bag[key] = next;
-        state.dirty = true;
-        if (after) after(input);
-      })
-    )
-  );
-}
-
-function colorRow(label, value, onColor) {
-  const color = h("input", {
-    type: "color",
-    value: cssColor(value, "#000000"),
-    "aria-label": label,
-    oninput: (event) => {
-      const next = event.target.value.toLowerCase();
-      onColor(next, event.target);
-      const text = event.target.parentElement.querySelector('input[type="text"]');
-      if (text) text.value = next;
-    },
-  });
-  const text = h("input", {
-    type: "text",
-    value: value || "",
-    spellcheck: "false",
-    "aria-label": `${label}色值`,
-    oninput: (event) => {
-      const next = event.target.value.trim();
-      if (/^#[0-9a-fA-F]{6}$/.test(next)) {
-        const hex = next.toLowerCase();
-        onColor(hex, color);
-        color.value = hex;
-      }
-    },
-  });
-  return h("div", { class: "color-field" }, h("label", {}, label), color, text);
-}
-
-function jobCard(job, index) {
-  job.colors = YxPalette.jobColors(job);
-  const card = h(
-    "article",
-    { class: "job-card" },
-    h("h3", {}, job.name || "未命名职业"),
-    h("p", { class: "hint" }, `#/job/${job.id}`),
-    field("导航名称（英文）", job.name, (value) => {
-      job.name = value;
-    }),
-    field("一句短文", job.tagline, (value) => {
-      job.tagline = value;
-    }),
-    colorGrid(JOB_FIELDS, job.colors, (input) => {
-      const card = input && input.closest(".job-card");
-      if (card) YxPalette.applyJobScheme(card, job.colors);
-    }),
-    h("p", { class: "hint" }, "页面背景是正文这一块的底色。渐变是横图底部淡进去的颜色。"),
-    h("label", {}, "正文"),
-    h("textarea", {
-      value: (job.paragraphs || []).join("\n\n"),
-      oninput: (event) => {
-        job.paragraphs = event.target.value.split(/\n\s*\n/).map((item) => item.trim()).filter(Boolean);
-        state.dirty = true;
-      },
-    }),
-    h("p", { class: "hint" }, "空行会分成新的一段。"),
-    h(
-      "div",
-      { class: "uploads" },
-      uploadSlot(job, "banner", "横版插图", "banner"),
-      uploadSlot(job, "portrait", "方邮票头像", "stamp")
-    ),
-    extraImages(job),
-    h(
-      "div",
-      { class: "row-actions" },
-      h("button", { type: "button", onclick: () => moveJob(index, -1), disabled: index === 0 }, "上移"),
-      h("button", { type: "button", onclick: () => moveJob(index, 1), disabled: index === state.jobs.length - 1 }, "下移"),
-      h("button", { class: "danger", type: "button", onclick: () => removeJob(index) }, "删除")
-    )
-  );
-  YxPalette.applyJobScheme(card, job.colors);
-  return card;
-}
-
-function field(label, value, onInput) {
-  const input = h("input", {
-    type: "text",
-    value: value || "",
-    oninput: (event) => {
-      onInput(event.target.value);
-      state.dirty = true;
-    },
-  });
-  return h("div", {}, h("label", {}, label), input);
-}
-
-function uploadSlot(job, key, label, frameClass) {
-  const input = h("input", {
-    type: "file",
-    accept: "image/jpeg,image/png,image/webp,image/gif",
-    onchange: (event) => upload(job, key, event.target.files[0], event.target),
-  });
-  const preview = job[key] ? h("img", { src: job[key], alt: "" }) : h("span", {}, "未上传");
-  const frame = h("figure", { class: `${frameClass}${job[key] ? "" : " is-empty"}` }, preview);
-  return h("div", {}, h("label", {}, label), frame, input);
-}
-
-function extraImages(job) {
-  if (!Array.isArray(job.images)) job.images = [];
-  const input = h("input", {
-    type: "file",
-    accept: "image/jpeg,image/png,image/webp,image/gif",
-    onchange: (event) => uploadExtra(job, event.target.files[0], event.target),
-  });
-  return h(
-    "div",
-    {},
-    h("label", {}, "更多图片"),
-    h("div", { class: "extra-list" }, job.images.map((src, index) => extraItem(job, src, index))),
-    input
-  );
-}
-
-function extraItem(job, src, index) {
-  return h(
-    "div",
-    { class: "extra-item" },
-    h("figure", {}, h("img", { src, alt: "" })),
-    h(
-      "div",
-      { class: "row-actions" },
-      h("button", { type: "button", onclick: () => moveImage(job, index, -1), disabled: index === 0 }, "上移"),
-      h("button", { type: "button", onclick: () => moveImage(job, index, 1), disabled: index === job.images.length - 1 }, "下移"),
-      h("button", { class: "danger", type: "button", onclick: () => removeImage(job, index) }, "移除")
-    )
-  );
-}
-
-function moveImage(job, index, step) {
-  const next = index + step;
-  if (next < 0 || next >= job.images.length) return;
-  const [src] = job.images.splice(index, 1);
-  job.images.splice(next, 0, src);
-  state.dirty = true;
-  paint();
-}
-
-function removeImage(job, index) {
-  job.images.splice(index, 1);
-  state.dirty = true;
-  paint();
-}
-
-async function uploadExtra(job, file, input) {
-  if (!file) return;
-  state.error = "";
-  state.message = "正在上传…";
-  paint();
-  try {
-    const body = new FormData();
-    body.append("file", file);
-    const data = await api("/api/upload", { method: "POST", body });
-    if (!Array.isArray(job.images)) job.images = [];
-    job.images.push(data.path);
-    state.dirty = true;
-    state.message = "图片已按原文件保存，记得点保存。";
-  } catch (error) {
-    state.error = error.message;
-  }
-  input.value = "";
-  paint();
-}
-
-async function upload(job, key, file, input) {
-  if (!file) return;
-  state.error = "";
-  state.message = "正在上传…";
-  paint();
-  try {
-    const body = new FormData();
-    body.append("file", file);
-    const data = await api("/api/upload", { method: "POST", body });
-    job[key] = data.path;
-    state.dirty = true;
-    state.message = "图片已按原文件保存，记得点保存。";
-  } catch (error) {
-    state.error = error.message;
-  }
-  input.value = "";
-  paint();
-}
-
-function addJob() {
-  state.jobs.push({
-    id: slugify("New Job", state.jobs),
-    name: "New Job",
-    tagline: "",
-    paragraphs: [],
-    colors: YxPalette.jobColors({}),
-    banner: "",
-    portrait: "",
-    images: [],
-  });
-  state.dirty = true;
-  state.message = "";
-  paint();
-}
-
-function moveJob(index, step) {
-  const next = index + step;
-  if (next < 0 || next >= state.jobs.length) return;
-  const [job] = state.jobs.splice(index, 1);
-  state.jobs.splice(next, 0, job);
-  state.dirty = true;
-  paint();
-}
-
-function removeJob(index) {
-  const job = state.jobs[index];
-  if (!window.confirm(`删除 ${job.name || "这个职业"}？`)) return;
-  state.jobs.splice(index, 1);
-  state.dirty = true;
-  paint();
-}
-
-function payload() {
-  return {
-    theme: YxPalette.siteColors(state.theme),
-    jobs: state.jobs.map((job) => ({
-      id: job.id,
-      name: job.name.trim(),
-      tagline: job.tagline.trim(),
-      paragraphs: job.paragraphs,
-      colors: YxPalette.jobColors(job),
-      banner: job.banner,
-      portrait: job.portrait,
-      images: Array.isArray(job.images) ? job.images.filter(Boolean) : [],
-    })),
-  };
-}
-
-async function save() {
-  state.error = "";
-  state.message = "正在保存…";
-  paint();
-  try {
-    const saved = await api("/api/site", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload()),
-    });
-    state.theme = saved.theme;
-    state.jobs = saved.jobs;
-    state.dirty = false;
-    state.message = "已保存。";
-  } catch (error) {
-    state.error = error.message;
-    state.message = "";
-  }
-  paint();
-}
-
-async function submitSetup(password) {
-  await submitAuth("/api/setup", password);
-}
-
-async function submitLogin(password) {
-  await submitAuth("/api/login", password);
-}
-
-async function submitAuth(path, password) {
+async function submit(path, password) {
   state.error = "";
   state.message = "";
   try {
@@ -413,7 +86,7 @@ async function submitAuth(path, password) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password }),
     });
-    await openEditor();
+    location.href = "/";
   } catch (error) {
     state.error = error.message;
     paint();
@@ -427,39 +100,17 @@ async function logout() {
   paint();
 }
 
-async function openEditor() {
-  const site = await fetch("/api/site", { cache: "no-store" }).then((response) => response.json());
-  state.theme = site.theme;
-  state.jobs = site.jobs;
-  state.mode = "editor";
-  state.dirty = false;
-  state.message = "";
-  state.error = "";
-  paint();
-}
-
-window.addEventListener("beforeunload", (event) => {
-  if (!state.dirty) return;
-  event.preventDefault();
-  event.returnValue = "";
-});
-
 async function boot() {
   paint();
   try {
     const session = await api("/api/session", { method: "GET" });
     if (session.needsSetup) state.mode = "setup";
-    else if (!session.authenticated) state.mode = "login";
-    else {
-      await openEditor();
-      return;
-    }
+    else if (session.authenticated) state.mode = "ready";
+    else state.mode = "login";
   } catch (error) {
     state.mode = "login";
     state.error = error.message;
   }
-  const site = await fetch("/api/site", { cache: "no-store" }).then((response) => response.json()).catch(() => null);
-  if (site && site.theme) state.theme = { ...state.theme, ...site.theme };
   paint();
 }
 

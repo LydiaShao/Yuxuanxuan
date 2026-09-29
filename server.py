@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve the job archive, and an admin for theme colors and image uploads."""
+"""Serve the job archive, and let an admin edit each page."""
 
 import hashlib
 import hmac
@@ -37,37 +37,27 @@ TYPES = {
     ".webp": "image/webp",
     ".gif": "image/gif",
 }
-DEFAULT_THEME = {
-    "background": "#1b3330",
-    "surface": "#274640",
-    "text": "#f4faf7",
-    "muted": "#b7cfc6",
-    "accent": "#7dceb8",
-    "onAccent": "#102824",
-}
 DEFAULT_JOB_COLORS = {
     "background": "#1e3a34",
-    "fade": "#7dceb8",
+    "bar": "#142826",
+    "barText": "#f4faf7",
     "text": "#f4faf7",
     "muted": "#c5ddd4",
 }
-THEME_KEYS = ("background", "surface", "text", "muted", "accent", "onAccent")
-JOB_COLOR_KEYS = ("background", "fade", "text", "muted")
-THEME_LABELS = {
-    "background": "背景",
-    "surface": "面板",
-    "text": "文字",
-    "muted": "次要文字",
-    "accent": "点缀",
-    "onAccent": "按钮文字",
-}
+JOB_COLOR_KEYS = ("background", "bar", "barText", "text", "muted")
 JOB_COLOR_LABELS = {
     "background": "页面背景",
-    "fade": "渐变",
+    "bar": "顶栏",
+    "barText": "顶栏文字",
     "text": "文字",
     "muted": "次要文字",
 }
+PANEL_BACKGROUND = "#f4efe6"
+PANEL_TEXT = "#2a2420"
 MAX_IMAGES = 40
+MAX_BLOCKS = 16
+MAX_SPRITES = 12
+MAX_JOBS = 40
 
 FAILURES = {}
 SESSIONS = None
@@ -170,14 +160,91 @@ def clean_color_map(source, keys, labels, defaults, legacy_key, legacy_value, st
     return cleaned
 
 
-def clean_theme(incoming, strict=True):
-    source = incoming if isinstance(incoming, dict) else {}
-    return clean_color_map(source, THEME_KEYS, THEME_LABELS, DEFAULT_THEME, "accent", source.get("color", ""), strict)
-
-
 def clean_job_colors(job, strict):
     source = job.get("colors") if isinstance(job.get("colors"), dict) else {}
-    return clean_color_map(source, JOB_COLOR_KEYS, JOB_COLOR_LABELS, DEFAULT_JOB_COLORS, "fade", job.get("color"), strict)
+    legacy = source.get("fade") or job.get("color") or ""
+    colors = clean_color_map(source, JOB_COLOR_KEYS, JOB_COLOR_LABELS, DEFAULT_JOB_COLORS, "background", legacy, strict)
+    return colors
+
+
+def clean_align(value):
+    side = str(value or "left").strip().lower()
+    return side if side in ("left", "right") else "left"
+
+
+def clean_rotate(value):
+    try:
+        number = int(value) % 360
+    except (TypeError, ValueError):
+        return 0
+    if number in (0, 90, 180, 270):
+        return number
+    return min((0, 90, 180, 270), key=lambda item: min(abs(item - number), 360 - abs(item - number)))
+
+
+def clean_percent(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 8.0
+    return round(min(92.0, max(0.0, number)), 2)
+
+
+def clean_blocks(job, strict):
+    raw = job.get("blocks")
+    if not isinstance(raw, list):
+        raw = []
+        if not strict:
+            for paragraph in job.get("paragraphs") if isinstance(job.get("paragraphs"), list) else []:
+                text = str(paragraph).strip()
+                if text:
+                    raw.append({"text": text, "background": PANEL_BACKGROUND, "color": PANEL_TEXT})
+    if strict and len(raw) > MAX_BLOCKS:
+        raise ValueError(f"每个职业最多 {MAX_BLOCKS} 个文字板块")
+    blocks = []
+    for item in raw[:MAX_BLOCKS]:
+        if isinstance(item, str):
+            item = {"text": item}
+        if not isinstance(item, dict):
+            if strict:
+                raise ValueError("文字板块格式不对")
+            continue
+        text = str(item.get("text", "")).replace("\r\n", "\n").strip()[:2000]
+        if not text and not strict:
+            continue
+        blocks.append({
+            "text": text,
+            "background": clean_hex(item.get("background"), "文字板块底色", PANEL_BACKGROUND if not strict else None),
+            "color": clean_hex(item.get("color"), "文字板块文字", PANEL_TEXT if not strict else None),
+        })
+    return blocks
+
+
+def clean_sprites(value, strict):
+    if value in (None, ""):
+        return []
+    if not isinstance(value, list):
+        if strict:
+            raise ValueError("小人格式不对")
+        return []
+    if strict and len(value) > MAX_SPRITES:
+        raise ValueError(f"每个职业最多 {MAX_SPRITES} 个小人")
+    sprites = []
+    for item in value[:MAX_SPRITES]:
+        if not isinstance(item, dict):
+            if strict:
+                raise ValueError("小人格式不对")
+            continue
+        src = clean_image(item.get("src"), strict)
+        if not src:
+            continue
+        sprites.append({
+            "src": src,
+            "x": clean_percent(item.get("x")),
+            "y": clean_percent(item.get("y")),
+            "rotate": clean_rotate(item.get("rotate")),
+        })
+    return sprites
 
 
 def clean_images(value, strict):
@@ -206,29 +273,40 @@ def clean_job(job, strict=True):
         raise ValueError("职业 id 只能用英文小写、数字和连字符")
     if not name or len(name) > 40:
         raise ValueError("职业名称需要 1 到 40 个字符")
-    paragraphs = job.get("paragraphs") if isinstance(job.get("paragraphs"), list) else []
-    text = [str(item).strip() for item in paragraphs if str(item).strip()][:12]
+    colors = clean_job_colors(job, strict)
+    if not strict:
+        theme = job.get("_theme") if isinstance(job.get("_theme"), dict) else {}
+        source = job.get("colors") if isinstance(job.get("colors"), dict) else {}
+        if not HEX.match(str(source.get("bar") or "").strip()):
+            inherited = str(theme.get("background") or "").strip()
+            if HEX.match(inherited) and inherited.lower() != colors["background"]:
+                colors["bar"] = inherited.lower()
+        if not HEX.match(str(source.get("barText") or "").strip()):
+            inherited = str(theme.get("text") or "").strip()
+            if HEX.match(inherited):
+                colors["barText"] = inherited.lower()
     return {
         "id": job_id,
         "name": name,
+        "align": clean_align(job.get("align")),
         "tagline": str(job.get("tagline", "")).strip()[:160],
-        "paragraphs": [item[:2000] for item in text],
-        "colors": clean_job_colors(job, strict),
+        "colors": colors,
+        "blocks": clean_blocks(job, strict),
         "banner": clean_image(job.get("banner"), strict),
         "portrait": clean_image(job.get("portrait"), strict),
         "images": clean_images(job.get("images"), strict),
+        "sprites": clean_sprites(job.get("sprites"), strict),
     }
 
 
 def validate_site(payload):
     if not isinstance(payload, dict):
         raise ValueError("档案格式不对")
-    theme = clean_theme(payload.get("theme"), strict=True)
     jobs_in = payload.get("jobs")
     if not isinstance(jobs_in, list):
         raise ValueError("缺少职业列表")
-    if len(jobs_in) > 24:
-        raise ValueError("最多 24 个职业")
+    if len(jobs_in) > MAX_JOBS:
+        raise ValueError(f"最多 {MAX_JOBS} 个职业")
     jobs = []
     seen = set()
     for job in jobs_in:
@@ -237,16 +315,18 @@ def validate_site(payload):
             raise ValueError(f"职业 id 重复：{cleaned['id']}")
         seen.add(cleaned["id"])
         jobs.append(cleaned)
-    return {"theme": theme, "jobs": jobs}
+    return {"jobs": jobs}
 
 
 def public_site():
-    raw = load_json(SITE_PATH, {"theme": DEFAULT_THEME, "jobs": []})
-    theme = clean_theme(raw.get("theme") if isinstance(raw, dict) else {}, strict=False)
+    raw = load_json(SITE_PATH, {"jobs": []})
+    theme = raw.get("theme") if isinstance(raw, dict) and isinstance(raw.get("theme"), dict) else {}
     jobs = []
     seen = set()
     source = raw.get("jobs") if isinstance(raw, dict) and isinstance(raw.get("jobs"), list) else []
     for job in source:
+        if isinstance(job, dict):
+            job = {**job, "_theme": theme}
         try:
             cleaned = clean_job(job, strict=False)
         except ValueError:
@@ -255,7 +335,7 @@ def public_site():
             continue
         seen.add(cleaned["id"])
         jobs.append(cleaned)
-    return {"theme": theme, "jobs": jobs}
+    return {"jobs": jobs}
 
 
 def sniff_image(blob):
@@ -615,7 +695,7 @@ def main():
     DATA.mkdir(parents=True, exist_ok=True)
     UPLOADS.mkdir(parents=True, exist_ok=True)
     if not SITE_PATH.exists():
-        atomic_write(SITE_PATH, {"theme": DEFAULT_THEME, "jobs": []})
+        atomic_write(SITE_PATH, {"jobs": []})
     for stale in UPLOADS.glob(".*.part"):
         stale.unlink(missing_ok=True)
     ipv4 = IPv4Server(("0.0.0.0", 4173), Handler)
