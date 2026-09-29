@@ -54,7 +54,17 @@
   if (window.ResizeObserver) new ResizeObserver(syncPage).observe(document.documentElement);
   const bar = document.querySelector(".topbar");
   if (!bar) return;
-  const sync = () => bar.classList.toggle("is-top", window.scrollY < 2);
+  const syncHeight = () => {
+    const height = Math.ceil(bar.getBoundingClientRect().height);
+    if (height) document.documentElement.style.setProperty("--bar-h", `${height}px`);
+  };
+  const sync = () => {
+    bar.classList.toggle("is-top", window.scrollY < 2);
+    syncHeight();
+  };
   sync();
   window.addEventListener("scroll", sync, { passive: true });
+  window.addEventListener("resize", syncHeight);
+  if (window.ResizeObserver) new ResizeObserver(syncHeight).observe(bar);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncHeight);
 })();
