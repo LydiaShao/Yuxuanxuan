@@ -324,6 +324,18 @@ main#content {
   filter: drop-shadow(0 0.18rem 0.42rem rgba(20, 16, 14, 0.3));
 }
 
+.portrait.is-bgm {
+  cursor: pointer;
+}
+
+.portrait.is-bgm img {
+  transition: filter 0.5s ease, opacity 0.5s ease;
+}
+
+.portrait.is-bgm:not(.is-playing) img {
+  filter: drop-shadow(0 0.18rem 0.42rem rgba(20, 16, 14, 0.3)) saturate(0.78) brightness(0.9);
+}
+
 .is-empty {
   display: grid;
   place-items: center;
@@ -837,30 +849,6 @@ body.is-admin .wrap-pic.is-dragging {
   border: 0;
   background: transparent;
   cursor: pointer;
-}
-
-.bgm-toggle {
-  position: fixed;
-  right: var(--edge);
-  bottom: 1.15rem;
-  z-index: 32;
-  width: 2.4rem;
-  height: 2.4rem;
-  margin: 0;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--bar-text) 32%, transparent);
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--bar) 86%, transparent);
-  color: var(--bar-text);
-  font: inherit;
-  font-size: 0.82rem;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-}
-
-.bgm-toggle.is-muted {
-  opacity: 0.55;
 }
 
 a:focus-visible,

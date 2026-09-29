@@ -277,7 +277,7 @@ function bgmSlot(job) {
     "div",
     {},
     h("label", {}, "BGM"),
-    h("p", { class: "hint" }, "每个职业一首。MP3 / OGG / WAV / FLAC / M4A，24MB 以内。访客第一次点页面后才会出声。"),
+    h("p", { class: "hint" }, "每个职业一首。MP3 / OGG / WAV / FLAC / M4A，24MB 以内。自动播放，点邮票头像停止；再点继续。切职业会渐入渐出。"),
     preview,
     input
   );

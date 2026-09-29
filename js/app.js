@@ -439,6 +439,15 @@ function renderJob(job) {
   const portrait = plate("portrait", job.portrait, `${job.name} portrait`, {
     replace: () => replaceSlot(job, "portrait"),
   });
+  if (portrait && job.bgm) {
+    portrait.classList.add("is-bgm");
+    portrait.addEventListener("click", () => toggleBgm());
+    portrait.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      toggleBgm();
+    });
+  }
   const copy = h(
     "div",
     { class: "identity-copy" },
@@ -1371,101 +1380,158 @@ function renderMissing() {
   );
 }
 
+const BGM_VOL = 0.42;
+const BGM_FADE = 900;
+
 const bgmState = {
-  audio: null,
+  a: null,
+  b: null,
+  using: "a",
   src: "",
-  unlocked: false,
+  wanted: true,
 };
 
-function bgmMuted() {
-  try {
-    return localStorage.getItem("yx-bgm-muted") === "1";
-  } catch (_error) {
-    return false;
-  }
-}
-
-function setBgmMuted(value) {
-  try {
-    localStorage.setItem("yx-bgm-muted", value ? "1" : "0");
-  } catch (_error) {
-    /* private mode */
-  }
-}
-
-function bgmAudio() {
-  if (bgmState.audio) return bgmState.audio;
+function makeBgmPlayer() {
   const audio = new Audio();
   audio.loop = true;
   audio.preload = "auto";
-  audio.volume = 0.42;
-  bgmState.audio = audio;
+  audio.volume = 0;
   return audio;
 }
 
-function paintBgm(src) {
-  let button = document.getElementById("bgm-toggle");
-  if (!src) {
-    button?.remove();
-    return;
-  }
-  if (!button) {
-    button = h("button", {
-      id: "bgm-toggle",
-      type: "button",
-      class: "bgm-toggle",
-      onclick: () => {
-        const next = !bgmMuted();
-        setBgmMuted(next);
-        bgmAudio().muted = next;
-        bgmState.unlocked = true;
-        playBgm();
-        paintBgm(bgmState.src);
-      },
-    });
-    document.body.append(button);
-  }
-  const muted = bgmMuted();
-  button.classList.toggle("is-muted", muted);
-  button.setAttribute("aria-label", muted ? "Unmute music" : "Mute music");
-  button.textContent = muted ? "静" : "音";
+function bgmPlayer(name) {
+  if (!bgmState[name]) bgmState[name] = makeBgmPlayer();
+  return bgmState[name];
 }
 
-function playBgm() {
-  const audio = bgmAudio();
-  audio.muted = bgmMuted();
-  if (!audio.getAttribute("src")) return;
+function bgmActive() {
+  return bgmPlayer(bgmState.using);
+}
+
+function bgmIdle() {
+  return bgmPlayer(bgmState.using === "a" ? "b" : "a");
+}
+
+function cancelBgmFade(audio) {
+  if (audio && audio._fade) {
+    cancelAnimationFrame(audio._fade);
+    audio._fade = 0;
+  }
+}
+
+function fadeBgm(audio, target, ms) {
+  return new Promise((resolve) => {
+    if (!audio) {
+      resolve();
+      return;
+    }
+    cancelBgmFade(audio);
+    const start = audio.volume;
+    if (Math.abs(start - target) < 0.008) {
+      audio.volume = target;
+      resolve();
+      return;
+    }
+    const began = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - began) / ms);
+      const eased = t * t * (3 - 2 * t);
+      audio.volume = start + (target - start) * eased;
+      if (t < 1) {
+        audio._fade = requestAnimationFrame(step);
+        return;
+      }
+      audio.volume = target;
+      audio._fade = 0;
+      resolve();
+    };
+    audio._fade = requestAnimationFrame(step);
+  });
+}
+
+function tryPlayBgm(audio) {
   const attempt = audio.play();
-  if (attempt && attempt.catch) {
-    attempt.catch(() => {
-      bgmState.unlocked = false;
-    });
-  }
+  if (attempt && attempt.catch) return attempt.then(() => true).catch(() => false);
+  return Promise.resolve(true);
 }
 
-function unlockBgm() {
-  if (bgmState.unlocked) return;
-  bgmState.unlocked = true;
-  playBgm();
+function markPortrait() {
+  const has = Boolean(bgmState.src);
+  const playing = has && bgmState.wanted;
+  document.querySelectorAll(".portrait").forEach((node) => {
+    const live = has && node.classList.contains("is-bgm");
+    node.classList.toggle("is-playing", live && playing);
+    if (!live) return;
+    node.setAttribute("role", "button");
+    node.tabIndex = 0;
+    node.setAttribute("aria-pressed", playing ? "true" : "false");
+    node.setAttribute("aria-label", playing ? "Stop music" : "Play music");
+  });
+}
+
+function silenceBgm(audio) {
+  const gen = (audio._gen || 0) + 1;
+  audio._gen = gen;
+  return fadeBgm(audio, 0, BGM_FADE).then(() => {
+    if (audio._gen !== gen) return;
+    audio.pause();
+  });
+}
+
+function startBgm(audio, src) {
+  if (audio.getAttribute("src") !== src) audio.src = src;
+  audio.volume = 0;
+  const gen = (audio._gen || 0) + 1;
+  audio._gen = gen;
+  return tryPlayBgm(audio).then((ok) => {
+    if (audio._gen !== gen || !bgmState.wanted) return ok;
+    if (ok) fadeBgm(audio, BGM_VOL, BGM_FADE);
+    return ok;
+  });
+}
+
+function toggleBgm() {
+  if (!bgmState.src) return;
+  bgmState.wanted = !bgmState.wanted;
+  markPortrait();
+  if (bgmState.wanted) startBgm(bgmActive(), bgmState.src);
+  else silenceBgm(bgmActive());
+}
+
+function resumeBgm() {
+  if (!bgmState.wanted || !bgmState.src) return;
+  const audio = bgmActive();
+  if (!audio.getAttribute("src")) audio.src = bgmState.src;
+  if (!audio.paused && audio.volume >= BGM_VOL - 0.02) return;
+  startBgm(audio, bgmState.src);
 }
 
 function syncBgm(job) {
+  document.getElementById("bgm-toggle")?.remove();
   const src = job && job.bgm ? job.bgm : "";
-  const audio = bgmAudio();
   if (!src) {
-    audio.pause();
-    audio.removeAttribute("src");
+    bgmState.wanted = true;
     bgmState.src = "";
-    paintBgm("");
+    silenceBgm(bgmActive());
+    silenceBgm(bgmIdle());
+    markPortrait();
     return;
   }
-  if (bgmState.src !== src) {
-    bgmState.src = src;
-    audio.src = src;
+  if (src === bgmState.src) {
+    markPortrait();
+    if (bgmState.wanted) resumeBgm();
+    return;
   }
-  paintBgm(src);
-  audio.muted = bgmMuted();
-  playBgm();
+  bgmState.wanted = true;
+  const outgoing = bgmActive();
+  const incoming = bgmIdle();
+  bgmState.using = bgmState.using === "a" ? "b" : "a";
+  bgmState.src = src;
+  markPortrait();
+  silenceBgm(outgoing).then(() => {
+    if (outgoing.getAttribute("src") && outgoing !== bgmActive()) outgoing.removeAttribute("src");
+  });
+  startBgm(incoming, src);
 }
 
 function paint() {
@@ -1504,7 +1570,7 @@ function paint() {
 }
 
 document.addEventListener("pointerdown", (event) => {
-  unlockBgm();
+  if (!event.target.closest(".portrait.is-bgm")) resumeBgm();
   if (!event.target.closest(".image-menu")) closeMenu();
   if (event.target.closest(".fx-catalog, .spin, .image-menu")) return;
   const pic = event.target.closest(".wrap-pic");
@@ -1521,7 +1587,10 @@ document.addEventListener("contextmenu", (event) => {
     { label: "Add picture", action: () => addPictures(job) },
   ]);
 });
-document.addEventListener("keydown", unlockBgm);
+document.addEventListener("keydown", (event) => {
+  if (event.target.closest("input, textarea, [contenteditable='true']")) return;
+  resumeBgm();
+});
 window.addEventListener("hashchange", () => paint());
 let displayTimer = 0;
 window.addEventListener("resize", () => {
