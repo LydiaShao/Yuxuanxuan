@@ -295,16 +295,50 @@ async function writeSite() {
   }
 }
 
+function quantizeEdge(edge) {
+  const step = 160;
+  const clamped = Math.min(8192, Math.max(480, Math.round(edge)));
+  return Math.ceil(clamped / step) * step;
+}
+
+function quantizeSprite(edge) {
+  const step = 80;
+  const clamped = Math.min(1280, Math.max(240, Math.round(edge)));
+  return Math.ceil(clamped / step) * step;
+}
+
+function displayPath(src, edge, quality) {
+  const params = new URLSearchParams({
+    src,
+    w: String(quantizeEdge(edge)),
+    q: String(quality),
+  });
+  return `/api/display?${params}`;
+}
+
 function bannerDisplay(src) {
-  return src;
+  const pixels = window.innerWidth * (window.devicePixelRatio || 1);
+  return displayPath(src, pixels, 90);
 }
 
 function galleryDisplay(src) {
   return src;
 }
 
-function spriteDisplay(src) {
-  return src;
+function spriteEdge(scale) {
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const css = Math.min(16 * rem, window.innerWidth * 0.34) * Math.max(0.2, scale || 0.5);
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  return css * dpr;
+}
+
+function spriteDisplay(src, scale) {
+  const params = new URLSearchParams({
+    src,
+    w: String(quantizeSprite(spriteEdge(scale))),
+    q: "86",
+  });
+  return `/api/display?${params}`;
 }
 
 function spriteStill(src) {
@@ -1122,7 +1156,8 @@ function refreshPictures() {
     if (image.dataset.fellback) return;
     const src = image.dataset.original;
     if (!src) return;
-    if (image.getAttribute("src") !== src) image.src = src;
+    const next = image.dataset.kind === "banner" ? bannerDisplay(src) : src;
+    if (image.getAttribute("src") !== next) image.src = next;
   });
 }
 
