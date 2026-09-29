@@ -687,6 +687,38 @@ async function replaceList(job, key, index) {
   }
 }
 
+function hopVars(rotate) {
+  const deg = ((Number(rotate) || 0) % 360 + 360) % 360;
+  let x = 0;
+  let y = -1;
+  if (deg === 90) {
+    x = 1;
+    y = 0;
+  } else if (deg === 180) {
+    x = 0;
+    y = 1;
+  } else if (deg === 270) {
+    x = -1;
+    y = 0;
+  }
+  return {
+    "--hop-x": `${x * 1.15}rem`,
+    "--hop-y": `${y * 1.15}rem`,
+    "--hop-x2": `${x * 0.42}rem`,
+    "--hop-y2": `${y * 0.42}rem`,
+  };
+}
+
+function hopStyle(rotate) {
+  return Object.entries(hopVars(rotate))
+    .map(([name, value]) => `${name}:${value}`)
+    .join(";");
+}
+
+function applyHop(figure, rotate) {
+  Object.entries(hopVars(rotate)).forEach(([name, value]) => figure.style.setProperty(name, value));
+}
+
 function renderSprites(job) {
   let layer = document.getElementById("sprites");
   if (!layer) {
@@ -709,7 +741,7 @@ function renderSprites(job) {
         "figure",
         {
           class: "sprite",
-          style: `left:${Number(sprite.x) || 0}%;top:${Number(sprite.y) || 0}%;--sprite-size:${scale}`,
+          style: `left:${Number(sprite.x) || 0}%;top:${Number(sprite.y) || 0}%;--sprite-size:${scale};${hopStyle(sprite.rotate)}`,
         },
         image
       );
@@ -719,6 +751,7 @@ function renderSprites(job) {
         turn: () => {
           sprite.rotate = ((Number(sprite.rotate) || 0) + 90) % 360;
           figure.querySelector("img").style.transform = `rotate(${sprite.rotate}deg)`;
+          applyHop(figure, sprite.rotate);
           if (state.admin) persist().catch((error) => window.alert(error.message));
         },
       });

@@ -655,6 +655,10 @@ body.is-admin .wrap-pic.is-right .resize {
   cursor: grab;
   touch-action: none;
   --sprite-size: 0.5;
+  --hop-x: 0px;
+  --hop-y: -1.15rem;
+  --hop-x2: 0px;
+  --hop-y2: -0.42rem;
 }
 
 .sprite.is-dragging {
@@ -772,16 +776,16 @@ textarea:focus-visible {
 @keyframes sprite-hop {
   0%,
   100% {
-    transform: translateY(0);
+    transform: translate(0, 0);
   }
   32% {
-    transform: translateY(-1.15rem);
+    transform: translate(var(--hop-x), var(--hop-y));
   }
   58% {
-    transform: translateY(0);
+    transform: translate(0, 0);
   }
   74% {
-    transform: translateY(-0.42rem);
+    transform: translate(var(--hop-x2), var(--hop-y2));
   }
 }
 
