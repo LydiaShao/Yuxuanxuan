@@ -468,6 +468,25 @@ def clean_job(job, strict=True):
     }
 
 
+def unique_slug(name, taken):
+    base = re.sub(r"[^a-z0-9]+", "-", str(name or "").strip().lower()).strip("-")[:40] or "job"
+    slug = base
+    n = 2
+    while slug in taken:
+        suffix = f"-{n}"
+        slug = f"{base[: max(1, 40 - len(suffix))]}{suffix}"
+        n += 1
+    return slug
+
+
+def stamp_job_ids(jobs):
+    taken = set()
+    for job in jobs:
+        job["id"] = unique_slug(job["name"], taken)
+        taken.add(job["id"])
+    return jobs
+
+
 def validate_site(payload):
     if not isinstance(payload, dict):
         raise ValueError("档案格式不对")
@@ -484,7 +503,7 @@ def validate_site(payload):
             raise ValueError(f"职业 id 重复：{cleaned['id']}")
         seen.add(cleaned["id"])
         jobs.append(cleaned)
-    return {"jobs": jobs}
+    return {"jobs": stamp_job_ids(jobs)}
 
 
 def public_site():
@@ -504,7 +523,7 @@ def public_site():
             continue
         seen.add(cleaned["id"])
         jobs.append(cleaned)
-    return {"jobs": jobs}
+    return {"jobs": stamp_job_ids(jobs)}
 
 
 def requested_edge(value):
