@@ -52,6 +52,19 @@ textarea {
   resize: vertical;
 }
 
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.8rem, 1fr));
+  gap: 0.2rem 0.8rem;
+  margin-top: 0.4rem;
+}
+
+.text-block {
+  margin-top: 0.8rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--frame);
+}
+
 .color-field input[type="color"] {
   width: 100%;
   height: 2.4rem;

@@ -11,11 +11,13 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 UPLOADS = ROOT / "images" / "uploads"
+DISPLAYS = UPLOADS / ".display"
+DISPLAY_EDGE = 1920
 SITE_PATH = DATA / "site.json"
 ADMIN_PATH = DATA / "admin.json"
 SECRET_PATH = DATA / "secret.key"
@@ -338,6 +340,39 @@ def public_site():
     return {"jobs": jobs}
 
 
+def soften_banner(source):
+    """A slightly smaller copy for the header. The uploaded file stays untouched."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return source
+    stamp = source.stat().st_mtime_ns
+    with Image.open(source) as image:
+        if getattr(image, "n_frames", 1) > 1:
+            return source
+        width, height = image.size
+        if max(width, height) <= DISPLAY_EDGE and source.stat().st_size < 1_800_000:
+            return source
+        has_alpha = image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info)
+        suffix = ".png" if has_alpha else ".jpg"
+        target = DISPLAYS / f"{source.stem}-{stamp}{suffix}"
+        if target.is_file():
+            return target
+        DISPLAYS.mkdir(parents=True, exist_ok=True)
+        frame = image.copy()
+        frame.thumbnail((DISPLAY_EDGE, DISPLAY_EDGE), Image.Resampling.LANCZOS)
+        temporary = target.with_suffix(target.suffix + ".part")
+        if has_alpha:
+            frame.convert("RGBA").save(temporary, format="PNG", optimize=True)
+        else:
+            frame.convert("RGB").save(temporary, format="JPEG", quality=82, optimize=True)
+        temporary.replace(target)
+        for stale in DISPLAYS.glob(f"{source.stem}-*"):
+            if stale != target:
+                stale.unlink(missing_ok=True)
+        return target
+
+
 def sniff_image(blob):
     if blob.startswith(b"\xff\xd8\xff"):
         return ".jpg"
@@ -522,9 +557,13 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def do_GET(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/api/site":
             self.send_json(200, public_site())
+            return
+        if path == "/api/display":
+            self.handle_display(parsed.query)
             return
         if path == "/api/session":
             self.send_json(200, {"needsSetup": needs_setup(), "authenticated": self.is_authenticated()})
@@ -639,6 +678,26 @@ class Handler(BaseHTTPRequestHandler):
         sessions().add(token)
         save_sessions()
         return f"yx_session={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=1209600"
+
+    def handle_display(self, query):
+        src = (parse_qs(query).get("src") or [""])[0]
+        try:
+            cleaned = clean_image(src, strict=True)
+        except ValueError:
+            self.send_error(404)
+            return
+        source = ROOT / cleaned
+        try:
+            path = soften_banner(source)
+        except Exception:
+            path = source
+        blob = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", TYPES.get(path.suffix.lower(), "application/octet-stream"))
+        self.send_header("Content-Length", str(len(blob)))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(blob)
 
     def handle_upload(self):
         if not self.require_admin():

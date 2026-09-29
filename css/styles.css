@@ -380,21 +380,6 @@ h1 {
   font-size: 0.92rem;
 }
 
-[contenteditable="true"] {
-  outline: none;
-}
-
-[contenteditable="true"]:focus {
-  outline: 1px solid color-mix(in srgb, currentColor 35%, transparent);
-  outline-offset: 3px;
-}
-
-.tagline[contenteditable="true"]:empty::before,
-.panel-text[contenteditable="true"]:empty::before {
-  content: attr(data-placeholder);
-  opacity: 0.55;
-}
-
 .sprites {
   position: fixed;
   inset: 0;
@@ -423,122 +408,37 @@ h1 {
   pointer-events: none;
 }
 
-.sprite .turn,
-.sprite .sprite-remove,
-.portrait .mini,
-.banner .mini,
-.gallery .mini {
-  position: absolute;
-}
-
-.sprite .turn {
-  top: 0;
-  right: 0;
-}
-
-.sprite .sprite-remove,
-.portrait .mini,
-.banner .mini,
-.gallery .mini {
-  left: 0.35rem;
-  bottom: 0.35rem;
-}
-
-.edit-dock {
+.image-menu {
   position: fixed;
   z-index: 8;
-  left: 1rem;
-  bottom: 1rem;
-  width: min(44rem, calc(100% - 2rem));
-  max-height: 42vh;
-  overflow: auto;
-  padding: 0.7rem 0.75rem;
-  background: color-mix(in srgb, var(--bar) 92%, transparent);
+  min-width: 9.5rem;
+  margin: 0;
+  padding: 0.25rem;
+  background: color-mix(in srgb, var(--bar) 94%, transparent);
   color: var(--bar-text);
-  backdrop-filter: blur(12px);
-  border: 1px solid color-mix(in srgb, var(--bar-text) 24%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bar-text) 28%, transparent);
+  backdrop-filter: blur(10px);
 }
 
-.edit-status {
-  margin: 0 0 0.45rem;
-  font-size: 0.88rem;
-}
-
-.edit-colors,
-.edit-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem 0.7rem;
-  align-items: end;
-}
-
-.edit-actions {
-  margin-top: 0.55rem;
-}
-
-.color-field {
-  display: grid;
-  gap: 0.15rem;
-  font-size: 0.75rem;
-}
-
-.color-field input[type="color"] {
-  width: 4.6rem;
-  height: 1.5rem;
-  padding: 0;
+.image-menu a,
+.image-menu button {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.35rem 0.6rem;
   border: 0;
-  background: transparent;
-}
-
-.color-field input[type="text"] {
-  width: 5.2rem;
-  background: transparent;
-  color: inherit;
-  border: 1px solid color-mix(in srgb, var(--bar-text) 30%, transparent);
   border-radius: 0.3rem;
-  padding: 0.15rem 0.3rem;
-}
-
-.edit-dock button,
-.file-button,
-.mini,
-.turn {
-  font: inherit;
-  font-size: 0.84rem;
-  cursor: pointer;
-  color: inherit;
   background: transparent;
-  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
-  border-radius: 0.4rem;
-  padding: 0.28rem 0.55rem;
-}
-
-.file-button {
-  display: inline-flex;
-  position: relative;
-  width: fit-content;
-}
-
-.file-button input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
 
-.edit-dock .primary {
-  background: var(--bar-text);
-  color: var(--bar);
-  border-color: var(--bar-text);
-}
-
-.edit-dock .danger,
-.mini {
-  background: color-mix(in srgb, var(--bar) 70%, black);
-}
-
-.job > .file-button {
-  margin: 0.7rem 0 0.4rem 4vw;
+.image-menu a:hover,
+.image-menu button:hover {
+  background: color-mix(in srgb, var(--bar-text) 14%, transparent);
 }
 
 a:focus-visible,
