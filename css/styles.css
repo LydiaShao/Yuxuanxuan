@@ -494,25 +494,17 @@ h1 {
 }
 
 .story-text .panel {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  top: 0;
   display: flow-root;
   box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  margin: 0 0 1rem;
+  width: 56%;
+  max-width: none;
+  margin: 0;
   padding: 0.7rem 0.9rem;
   overflow: visible;
-}
-
-.story-text .panel.is-sized.is-left {
-  float: left;
-  margin: 0 var(--gap) 1rem 0;
-  max-width: calc(100% - var(--gap));
-}
-
-.story-text .panel.is-sized.is-right {
-  float: right;
-  margin: 0 0 1rem var(--gap);
-  max-width: calc(100% - var(--gap));
 }
 
 .story-text .panel-text {
@@ -524,7 +516,6 @@ h1 {
 }
 
 body.is-admin .story-text .panel {
-  position: relative;
   padding-left: 1.25rem;
 }
 
@@ -541,12 +532,9 @@ body.is-admin .drag {
 }
 
 body.is-admin .panel.is-dragging {
-  position: fixed;
-  z-index: 6;
-  float: none;
-  margin: 0;
+  z-index: 40;
   cursor: grabbing;
-  opacity: 0.92;
+  opacity: 0.96;
 }
 
 body.is-admin .panel-text.is-empty {

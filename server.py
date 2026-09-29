@@ -438,11 +438,14 @@ def parse_body(raw, strict):
         block = text_item(item.get("text", ""), item.get("markup", ""), item.get("background"), item.get("color"), strict)
         if block:
             width = clean_ratio(item.get("w"))
-            if width is not None and width < 100:
+            if width is not None:
                 block["w"] = width
-                side = str(item.get("side") or "").strip().lower()
-                if side in ("left", "right"):
-                    block["side"] = side
+            x = clean_spot(item.get("x"), 0.0, 100.0)
+            y = clean_spot(item.get("y"), 0.0, 800.0)
+            if x is not None:
+                block["x"] = x
+            if y is not None:
+                block["y"] = y
             body.append(block)
     blocks = [
         {"text": item["text"], "background": item["background"], "color": item["color"]}

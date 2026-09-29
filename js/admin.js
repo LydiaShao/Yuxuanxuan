@@ -408,10 +408,9 @@ function payload() {
             color: cssHex(item.color, "#2a2420"),
           };
           const width = Number(item.w);
-          if (Number.isFinite(width) && width > 0 && width < 100) {
-            record.w = Math.round(Math.min(100, Math.max(8, width)) * 100) / 100;
-            if (item.side === "left" || item.side === "right") record.side = item.side;
-          }
+          record.w = Number.isFinite(width) && width > 0 ? Math.round(Math.min(100, Math.max(8, width)) * 100) / 100 : 56;
+          record.x = Math.round(Math.min(100, Math.max(0, Number(item.x) || 0)) * 100) / 100;
+          record.y = Math.round(Math.min(800, Math.max(0, Number(item.y) || 0)) * 100) / 100;
           return record;
         }
         const image = { type: "image", src: item.src };

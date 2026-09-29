@@ -173,7 +173,7 @@ function payload() {
   return {
     jobs: state.jobs.map((job) => {
       syncDerived(job);
-      ensureImagePlace(job);
+      ensureFreePlace(job);
       return {
         id: job.id,
         name: (job.name || "").trim(),
@@ -312,29 +312,11 @@ function textPayload(item) {
     background: cssHex(item.background, "#f4efe6"),
     color: cssHex(item.color, "#2a2420"),
   };
-  const width = flowWidth(item);
-  if (width != null) {
-    record.w = width;
-    if (item.side === "left" || item.side === "right") record.side = item.side;
-  }
-  return record;
-}
-
-function flowWidth(item) {
   const width = Number(item.w);
-  if (!Number.isFinite(width) || width <= 0) return null;
-  const clamped = Math.round(Math.min(100, Math.max(8, width)) * 100) / 100;
-  if (clamped >= 100) return null;
-  return clamped;
-}
-
-function applyFlowSize(node, item) {
-  const width = flowWidth(item);
-  const side = item.side === "right" ? "right" : "left";
-  node.classList.toggle("is-sized", width != null);
-  node.classList.toggle("is-left", width != null && side === "left");
-  node.classList.toggle("is-right", width != null && side === "right");
-  node.style.width = width != null ? `${width}%` : "";
+  record.w = Number.isFinite(width) && width > 0 ? Math.round(Math.min(100, Math.max(8, width)) * 100) / 100 : 56;
+  record.x = Math.round(Math.min(100, Math.max(0, Number(item.x) || 0)) * 100) / 100;
+  record.y = Math.round(Math.min(800, Math.max(0, Number(item.y) || 0)) * 100) / 100;
+  return record;
 }
 
 function bindMenu(node, original, extra) {
@@ -420,10 +402,14 @@ function renderJob(job) {
 
 function renderStory(job) {
   ensureBody(job);
-  ensureImagePlace(job);
+  ensureFreePlace(job);
   const flow = h("div", { class: "story-text" });
-  job.body.forEach((item) => {
-    if (item.type === "image") return;
+  job.body.forEach((item, index) => {
+    if (item.type === "image") {
+      const figure = wrapPic(job, item, index);
+      if (figure) flow.append(figure);
+      return;
+    }
     if (!state.admin && !(item.text || "").trim()) return;
     const text = h("div", {
       class: `panel-text${state.admin && !(item.text || "").trim() ? " is-empty" : ""}`,
@@ -442,13 +428,13 @@ function renderStory(job) {
       text
     );
     section._item = item;
-    applyFlowSize(section, item);
+    section.style.zIndex = String(2 + index);
     if (state.admin) {
       const grab = h("span", { class: "drag", "aria-hidden": "true" });
       const handle = h("span", { class: "resize", "aria-hidden": "true" });
       section.prepend(grab);
       section.append(handle);
-      bindStoryDrag(section, job, item, "drag");
+      bindFreeDrag(section, job, item, ".drag");
       bindWrapResize(handle, section, job, item);
       bindMenu(section, "", {
         colors: item,
@@ -457,17 +443,23 @@ function renderStory(job) {
     }
     flow.append(section);
   });
-  job.body.forEach((item, index) => {
-    if (item.type !== "image") return;
-    const figure = wrapPic(job, item, index);
-    if (figure) flow.append(figure);
-  });
   if (!flow.childNodes.length) return [];
   return [h("div", { class: "story" }, flow)];
 }
 
-function ensureImagePlace(job) {
-  const pics = ensureBody(job).filter((item) => item.type === "image");
+function ensureFreePlace(job) {
+  const texts = [];
+  const pics = [];
+  ensureBody(job).forEach((item) => {
+    if (item.type === "image") pics.push(item);
+    else texts.push(item);
+  });
+  texts.forEach((item, index) => {
+    const width = Number(item.w);
+    if (!Number.isFinite(width) || width <= 0) item.w = 100;
+    if (!Number.isFinite(Number(item.x))) item.x = item.side === "right" ? 40 : 0;
+    if (!Number.isFinite(Number(item.y))) item.y = index * 14;
+  });
   pics.forEach((item, index) => {
     const width = Number(item.w);
     if (!Number.isFinite(width) || width <= 0) item.w = 46;
@@ -477,14 +469,17 @@ function ensureImagePlace(job) {
   });
 }
 
-function applyPicPlace(figure, item, flow) {
+function applyFreePlace(node, item, flow) {
   const width = Number(item.w);
-  figure.style.width = `${Number.isFinite(width) && width > 0 ? Math.min(100, Math.max(8, width)) : 46}%`;
-  figure.style.left = `${Math.min(100, Math.max(0, Number(item.x) || 0))}%`;
+  const fallback = item.type === "image" ? 46 : 56;
+  node.style.width = `${Number.isFinite(width) && width > 0 ? Math.min(100, Math.max(8, width)) : fallback}%`;
+  node.style.left = `${Math.min(100, Math.max(0, Number(item.x) || 0))}%`;
   const column = flow.clientWidth || 1;
-  figure.style.top = `${(Math.min(800, Math.max(0, Number(item.y) || 0)) / 100) * column}px`;
-  const image = figure.querySelector("img");
-  if (image) image.style.transform = `rotate(${Number(item.rotate) || 0}deg)`;
+  node.style.top = `${(Math.min(800, Math.max(0, Number(item.y) || 0)) / 100) * column}px`;
+  if (item.type === "image") {
+    const image = node.querySelector("img");
+    if (image) image.style.transform = `rotate(${Number(item.rotate) || 0}deg)`;
+  }
 }
 
 function pinStory() {
@@ -500,8 +495,8 @@ function pinStory() {
 function layoutFreePics() {
   const flow = document.querySelector(".story-text");
   if (!flow) return;
-  flow.querySelectorAll(":scope > .wrap-pic").forEach((figure) => {
-    if (figure._item) applyPicPlace(figure, figure._item, flow);
+  flow.querySelectorAll(":scope > .wrap-pic, :scope > .panel").forEach((node) => {
+    if (node._item) applyFreePlace(node, node._item, flow);
   });
   pinStory();
 }
@@ -538,21 +533,21 @@ function wrapPic(job, item, index) {
   if (state.admin) {
     const handle = h("span", { class: "resize", "aria-hidden": "true" });
     figure.append(handle);
-    bindPicDrag(figure, job, item);
+    bindFreeDrag(figure, job, item);
     bindWrapResize(handle, figure, job, item);
   }
   return figure;
 }
 
-function bindPicDrag(figure, job, item) {
+function bindFreeDrag(node, job, item, grab) {
   let drag = null;
   let saveTimer = 0;
 
   function remember() {
-    const flow = figure.parentElement;
+    const flow = node.parentElement;
     if (!flow) return;
     const box = flow.getBoundingClientRect();
-    const rect = figure.getBoundingClientRect();
+    const rect = node.getBoundingClientRect();
     const column = box.width || 1;
     item.x = Math.round(Math.min(100, Math.max(0, ((rect.left - box.left) / column) * 100)) * 100) / 100;
     item.y = Math.round(Math.min(800, Math.max(0, ((rect.top - box.top) / column) * 100)) * 100) / 100;
@@ -564,69 +559,13 @@ function bindPicDrag(figure, job, item) {
     persist().catch((error) => window.alert(error.message));
   }
 
-  figure.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) return;
-    if (event.target.closest(".resize")) return;
-    const rect = figure.getBoundingClientRect();
-    drag = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moved: false };
-    figure.style.zIndex = "40";
-    event.preventDefault();
-    try { figure.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
-  });
-  figure.addEventListener("pointermove", (event) => {
-    if (!drag) return;
-    const dx = event.clientX - drag.x;
-    const dy = event.clientY - drag.y;
-    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
-    if (!drag.moved) {
-      drag.moved = true;
-      figure.classList.add("is-dragging");
-      const flow = figure.parentElement.getBoundingClientRect();
-      figure.style.left = `${drag.left - flow.left}px`;
-      figure.style.top = `${drag.top - flow.top}px`;
-      job.body = job.body.filter((entry) => entry !== item).concat(item);
-    }
-    const flow = figure.parentElement.getBoundingClientRect();
-    figure.style.left = `${drag.left + dx - flow.left}px`;
-    figure.style.top = `${drag.top + dy - flow.top}px`;
-    remember();
-    if (!state.admin) return;
-    window.clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(saveNow, 160);
-  });
-  const finish = () => {
-    if (!drag) return;
-    const moved = drag.moved;
-    drag = null;
-    figure.classList.remove("is-dragging");
-    if (!moved) return;
-    remember();
-    const flow = figure.parentElement;
-    if (flow) applyPicPlace(figure, item, flow);
-    pinStory();
-    saveNow();
-  };
-  figure.addEventListener("pointerup", finish);
-  figure.addEventListener("pointercancel", finish);
-}
-
-function tintBlock(item, key, value) {
-  const hex = cssHex(value, key === "color" ? "#2a2420" : "#f4efe6");
-  item[key] = hex;
-  document.querySelectorAll(".story-text .panel").forEach((node) => {
-    if (node._item !== item) return;
-    node.style[key] = hex;
-  });
-}
-
-function bindStoryDrag(node, job, item, grab) {
-  let drag = null;
   node.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
-    if (grab === "img" && !event.target.closest("img")) return;
-    if (grab === "drag" && !event.target.closest(".drag")) return;
+    if (event.target.closest(".resize")) return;
+    if (grab && !event.target.closest(grab)) return;
     const rect = node.getBoundingClientRect();
-    drag = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, width: rect.width, moved: false };
+    drag = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moved: false };
+    node.style.zIndex = "40";
     event.preventDefault();
     try { node.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
   });
@@ -638,50 +577,41 @@ function bindStoryDrag(node, job, item, grab) {
     if (!drag.moved) {
       drag.moved = true;
       node.classList.add("is-dragging");
-      node.style.width = `${drag.width}px`;
+      const flow = node.parentElement.getBoundingClientRect();
+      node.style.left = `${drag.left - flow.left}px`;
+      node.style.top = `${drag.top - flow.top}px`;
+      job.body = job.body.filter((entry) => entry !== item).concat(item);
     }
-    node.style.left = `${drag.left + dx}px`;
-    node.style.top = `${drag.top + dy}px`;
+    const flow = node.parentElement.getBoundingClientRect();
+    node.style.left = `${drag.left + dx - flow.left}px`;
+    node.style.top = `${drag.top + dy - flow.top}px`;
+    remember();
+    if (!state.admin) return;
+    window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(saveNow, 160);
   });
-  const stop = () => {
-    drag = null;
-    node.classList.remove("is-dragging");
-    node.style.left = "";
-    node.style.top = "";
-    node.style.width = flowWidth(item) != null ? `${flowWidth(item)}%` : "";
-  };
-  node.addEventListener("pointerup", (event) => {
+  const finish = () => {
     if (!drag) return;
     const moved = drag.moved;
-    const x = event.clientX;
-    const y = event.clientY;
-    stop();
+    drag = null;
+    node.classList.remove("is-dragging");
     if (!moved) return;
+    remember();
     const flow = node.parentElement;
-    if (!flow) return;
-    const rect = flow.getBoundingClientRect();
-    if (item.type === "text") {
-      item.side = x < rect.left + rect.width / 2 ? "left" : "right";
-      applyFlowSize(node, item);
-    }
-    const kids = [...flow.children].filter((child) => child !== node);
-    let at = kids.length;
-    node.style.visibility = "hidden";
-    const probe = document.elementFromPoint(x, y);
-    node.style.visibility = "";
-    const hit = probe && probe.closest ? probe.closest(".story-text > *") : null;
-    if (hit && hit.parentElement === flow) {
-      const hitRect = hit.getBoundingClientRect();
-      const index = kids.indexOf(hit);
-      at = index < 0 ? kids.length : y < hitRect.top + hitRect.height / 2 ? index : index + 1;
-    } else if (y < rect.top) at = 0;
-    kids.splice(at, 0, node);
-    for (const child of kids) flow.append(child);
-    job.body = kids.map((child) => child._item).filter(Boolean);
-    persist().then(() => paint()).catch((error) => window.alert(error.message));
-  });
-  node.addEventListener("pointercancel", () => {
-    if (drag) stop();
+    if (flow) applyFreePlace(node, item, flow);
+    pinStory();
+    saveNow();
+  };
+  node.addEventListener("pointerup", finish);
+  node.addEventListener("pointercancel", finish);
+}
+
+function tintBlock(item, key, value) {
+  const hex = cssHex(value, key === "color" ? "#2a2420" : "#f4efe6");
+  item[key] = hex;
+  document.querySelectorAll(".story-text .panel").forEach((node) => {
+    if (node._item !== item) return;
+    node.style[key] = hex;
   });
 }
 
@@ -690,16 +620,10 @@ function bindWrapResize(handle, figure, job, item) {
 
   const move = (event) => {
     if (!resizing) return;
-    const px = item.side === "right" ? resizing.anchor - event.clientX : event.clientX - resizing.anchor;
+    const px = event.clientX - resizing.anchor;
     const percent = Math.min(100, Math.max(8, (px / Math.max(resizing.flow, 1)) * 100));
     resizing.percent = Math.round(percent * 100) / 100;
     figure.style.width = `${resizing.percent}%`;
-    if (item.type === "text" && resizing.percent < 100) {
-      const side = item.side === "right" ? "right" : "left";
-      figure.classList.add("is-sized");
-      figure.classList.toggle("is-left", side === "left");
-      figure.classList.toggle("is-right", side === "right");
-    }
   };
 
   const finish = () => {
@@ -712,20 +636,11 @@ function bindWrapResize(handle, figure, job, item) {
     window.removeEventListener("mouseup", finish);
     window.removeEventListener("pointercancel", finish);
     if (percent == null) return;
-    if (item.type === "text") {
-      if (percent >= 99.5) delete item.w;
-      else {
-        item.w = percent;
-        if (item.side !== "left" && item.side !== "right") item.side = "left";
-      }
-      applyFlowSize(figure, item);
-    } else {
-      item.w = percent;
-      const flow = figure.parentElement;
-      if (flow) applyPicPlace(figure, item, flow);
-      refreshPictures();
-      pinStory();
-    }
+    item.w = percent;
+    const flow = figure.parentElement;
+    if (flow) applyFreePlace(figure, item, flow);
+    if (item.type === "image") refreshPictures();
+    pinStory();
     persist().catch((error) => window.alert(error.message));
   };
 
@@ -736,7 +651,7 @@ function bindWrapResize(handle, figure, job, item) {
     const rect = figure.getBoundingClientRect();
     const flow = figure.parentElement;
     resizing = {
-      anchor: item.side === "right" ? rect.right : rect.left,
+      anchor: rect.left,
       flow: flow ? flow.getBoundingClientRect().width : rect.width,
     };
     window.addEventListener("pointermove", move);
@@ -748,28 +663,36 @@ function bindWrapResize(handle, figure, job, item) {
   });
 }
 
-function addText(job, clientY) {
+function addText(job, clientX, clientY) {
   if (!state.admin) return;
   ensureBody(job);
-  const item = { type: "text", text: "", markup: "", background: "#f4efe6", color: "#2a2420", _fresh: true };
-  job.body.splice(textInsertAt(clientY), 0, item);
+  const flow = document.querySelector(".story-text");
+  let x = 4;
+  let y = 8;
+  if (flow && clientX != null && clientY != null) {
+    const box = flow.getBoundingClientRect();
+    const column = box.width || 1;
+    x = Math.round(Math.min(80, Math.max(0, ((clientX - box.left) / column) * 100)) * 100) / 100;
+    y = Math.round(Math.min(800, Math.max(0, ((clientY - box.top) / column) * 100)) * 100) / 100;
+  }
+  const item = {
+    type: "text",
+    text: "",
+    markup: "",
+    background: "#f4efe6",
+    color: "#2a2420",
+    w: 56,
+    x,
+    y,
+    _fresh: true,
+  };
+  job.body.push(item);
   paint();
   const field = document.querySelector(".panel-text[data-fresh]");
   if (!field) return;
   delete item._fresh;
   field.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
   field.focus();
-}
-
-function textInsertAt(clientY) {
-  const flow = document.querySelector(".story-text");
-  if (!flow || clientY == null) return flow ? flow.children.length : 0;
-  const kids = [...flow.children].filter((child) => child.classList.contains("panel"));
-  for (let index = 0; index < kids.length; index += 1) {
-    const rect = kids[index].getBoundingClientRect();
-    if (clientY < rect.top + rect.height / 2) return index;
-  }
-  return kids.length;
 }
 
 async function commitBlock(job, item, node) {
@@ -1135,7 +1058,7 @@ document.addEventListener("contextmenu", (event) => {
   if (!job) return;
   event.preventDefault();
   showMenu(event.clientX, event.clientY, [
-    { label: "Add text", action: () => addText(job, event.clientY) },
+    { label: "Add text", action: () => addText(job, event.clientX, event.clientY) },
     { label: "Add picture", action: () => addPictures(job) },
   ]);
 });
