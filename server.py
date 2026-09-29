@@ -197,6 +197,18 @@ def clean_percent(value):
     return round(min(92.0, max(0.0, number)), 2)
 
 
+def clean_spot(value, lo, hi):
+    if value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number:
+        return None
+    return round(min(hi, max(lo, number)), 2)
+
+
 def clean_blocks(job, strict):
     raw = job.get("blocks")
     if not isinstance(raw, list):
@@ -401,11 +413,17 @@ def parse_body(raw, strict):
                 continue
             image = {"type": "image", "src": src}
             width = clean_ratio(item.get("w"))
-            side = str(item.get("side") or "").strip().lower()
             if width is not None:
                 image["w"] = width
-            if side in ("left", "right"):
-                image["side"] = side
+            x = clean_spot(item.get("x"), 0.0, 100.0)
+            y = clean_spot(item.get("y"), 0.0, 800.0)
+            if x is not None:
+                image["x"] = x
+            if y is not None:
+                image["y"] = y
+            rotate = clean_rotate(item.get("rotate"))
+            if rotate:
+                image["rotate"] = rotate
             body.append(image)
             continue
         if kind not in ("text", ""):

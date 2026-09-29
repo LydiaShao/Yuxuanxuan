@@ -484,6 +484,7 @@ h1 {
 }
 
 .story-text {
+  position: relative;
   display: flow-root;
   width: auto;
   min-height: 2rem;
@@ -539,8 +540,7 @@ body.is-admin .drag {
   touch-action: none;
 }
 
-body.is-admin .panel.is-dragging,
-body.is-admin .wrap-pic.is-dragging {
+body.is-admin .panel.is-dragging {
   position: fixed;
   z-index: 6;
   float: none;
@@ -566,21 +566,13 @@ body.is-admin .panel-text.is-empty::before {
 }
 
 .wrap-pic {
-  position: relative;
-  z-index: 1;
-  width: calc((100% - var(--gap)) / 2);
-  max-width: 100%;
-  margin: 0.45rem var(--gap) 1rem 0;
-  shape-outside: margin-box;
-}
-
-.wrap-pic.is-left {
-  float: left;
-}
-
-.wrap-pic.is-right {
-  float: right;
-  margin: 0.45rem 0 1rem var(--gap);
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  top: 0;
+  width: 46%;
+  max-width: none;
+  margin: 0;
 }
 
 .wrap-pic img {
@@ -592,7 +584,6 @@ body.is-admin .panel-text.is-empty::before {
 }
 
 body.is-admin .wrap-pic {
-  position: relative;
   cursor: grab;
   touch-action: none;
 }
@@ -610,11 +601,16 @@ body.is-admin .resize {
   box-shadow: 0 0.08rem 0.2rem rgba(20, 16, 14, 0.35);
 }
 
-body.is-admin .wrap-pic.is-right .resize,
 body.is-admin .panel.is-right .resize {
   right: auto;
   left: -0.15rem;
-  cursor: nesw-resize;
+  cursor: ew-resize;
+}
+
+body.is-admin .wrap-pic.is-dragging {
+  z-index: 40;
+  cursor: grabbing;
+  opacity: 0.96;
 }
 
 .empty,

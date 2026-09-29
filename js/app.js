@@ -173,6 +173,7 @@ function payload() {
   return {
     jobs: state.jobs.map((job) => {
       syncDerived(job);
+      ensureImagePlace(job);
       return {
         id: job.id,
         name: (job.name || "").trim(),
@@ -294,9 +295,12 @@ function spriteStill(src) {
 
 function imagePayload(item) {
   const image = { type: "image", src: item.src };
-  const width = flowWidth(item);
-  if (width != null) image.w = width;
-  if (item.side === "left" || item.side === "right") image.side = item.side;
+  const width = Number(item.w);
+  image.w = Number.isFinite(width) && width > 0 ? Math.round(Math.min(100, Math.max(8, width)) * 100) / 100 : 46;
+  image.x = Math.round(Math.min(100, Math.max(0, Number(item.x) || 0)) * 100) / 100;
+  image.y = Math.round(Math.min(800, Math.max(0, Number(item.y) || 0)) * 100) / 100;
+  const rotate = ((Number(item.rotate) || 0) % 360 + 360) % 360;
+  if (rotate) image.rotate = rotate;
   return image;
 }
 
@@ -326,13 +330,6 @@ function flowWidth(item) {
 
 function applyFlowSize(node, item) {
   const width = flowWidth(item);
-  if (item.type === "image") {
-    const side = item.side === "right" ? "right" : "left";
-    node.classList.toggle("is-left", side === "left");
-    node.classList.toggle("is-right", side === "right");
-    node.style.width = width != null ? `${width}%` : "";
-    return;
-  }
   const side = item.side === "right" ? "right" : "left";
   node.classList.toggle("is-sized", width != null);
   node.classList.toggle("is-left", width != null && side === "left");
@@ -423,13 +420,10 @@ function renderJob(job) {
 
 function renderStory(job) {
   ensureBody(job);
+  ensureImagePlace(job);
   const flow = h("div", { class: "story-text" });
   job.body.forEach((item) => {
-    if (item.type === "image") {
-      const figure = wrapPic(job, item);
-      if (figure) flow.append(figure);
-      return;
-    }
+    if (item.type === "image") return;
     if (!state.admin && !(item.text || "").trim()) return;
     const text = h("div", {
       class: `panel-text${state.admin && !(item.text || "").trim() ? " is-empty" : ""}`,
@@ -463,31 +457,157 @@ function renderStory(job) {
     }
     flow.append(section);
   });
+  job.body.forEach((item, index) => {
+    if (item.type !== "image") return;
+    const figure = wrapPic(job, item, index);
+    if (figure) flow.append(figure);
+  });
   if (!flow.childNodes.length) return [];
   return [h("div", { class: "story" }, flow)];
 }
 
-function wrapPic(job, item) {
-  const side = item.side === "right" ? "right" : "left";
+function ensureImagePlace(job) {
+  const pics = ensureBody(job).filter((item) => item.type === "image");
+  pics.forEach((item, index) => {
+    const width = Number(item.w);
+    if (!Number.isFinite(width) || width <= 0) item.w = 46;
+    if (!Number.isFinite(Number(item.x))) item.x = item.side === "right" ? 52 : 0;
+    if (!Number.isFinite(Number(item.y))) item.y = index * 22;
+    if (!Number.isFinite(Number(item.rotate))) item.rotate = 0;
+  });
+}
+
+function applyPicPlace(figure, item, flow) {
+  const width = Number(item.w);
+  figure.style.width = `${Number.isFinite(width) && width > 0 ? Math.min(100, Math.max(8, width)) : 46}%`;
+  figure.style.left = `${Math.min(100, Math.max(0, Number(item.x) || 0))}%`;
+  const column = flow.clientWidth || 1;
+  figure.style.top = `${(Math.min(800, Math.max(0, Number(item.y) || 0)) / 100) * column}px`;
+  const image = figure.querySelector("img");
+  if (image) image.style.transform = `rotate(${Number(item.rotate) || 0}deg)`;
+}
+
+function pinStory() {
+  const flow = document.querySelector(".story-text");
+  if (!flow) return;
+  let bottom = 0;
+  flow.querySelectorAll(":scope > .panel, :scope > .wrap-pic").forEach((node) => {
+    bottom = Math.max(bottom, node.offsetTop + node.offsetHeight);
+  });
+  flow.style.minHeight = `${Math.max(bottom + 24, 48)}px`;
+}
+
+function layoutFreePics() {
+  const flow = document.querySelector(".story-text");
+  if (!flow) return;
+  flow.querySelectorAll(":scope > .wrap-pic").forEach((figure) => {
+    if (figure._item) applyPicPlace(figure, figure._item, flow);
+  });
+  pinStory();
+}
+
+function wrapPic(job, item, index) {
   const width = Number(item.w);
   const stage = Math.min(1120, window.innerWidth * 0.92);
-  const figure = plate(`wrap-pic is-${side}`, item.src, `${job.name} picture`, {
+  const options = {
     kind: "gallery",
-    display: galleryDisplay(item.src, stage * ((Number.isFinite(width) && width > 0 ? width : 50) / 100)),
+    display: galleryDisplay(item.src, stage * ((Number.isFinite(width) && width > 0 ? width : 46) / 100)),
     replace: () => replaceBodyImage(job, item),
     remove: () => removeBody(job, item),
-  });
+  };
+  let figure = null;
+  if (state.admin) {
+    options.turn = () => {
+      item.rotate = ((Number(item.rotate) || 0) + 90) % 360;
+      const image = figure.querySelector("img");
+      if (image) image.style.transform = `rotate(${item.rotate}deg)`;
+      pinStory();
+      persist().catch((error) => window.alert(error.message));
+    };
+  }
+  figure = plate("wrap-pic", item.src, `${job.name} picture`, options);
   if (!figure) return null;
   figure._item = item;
   figure.contentEditable = "false";
-  if (Number.isFinite(width) && width > 0) figure.style.width = `${width}%`;
+  figure.style.zIndex = String(2 + (Number(index) || 0));
+  const image = figure.querySelector("img");
+  if (image) {
+    image.addEventListener("load", pinStory);
+    image.style.transform = `rotate(${Number(item.rotate) || 0}deg)`;
+  }
   if (state.admin) {
     const handle = h("span", { class: "resize", "aria-hidden": "true" });
     figure.append(handle);
-    bindStoryDrag(figure, job, item, "img");
+    bindPicDrag(figure, job, item);
     bindWrapResize(handle, figure, job, item);
   }
   return figure;
+}
+
+function bindPicDrag(figure, job, item) {
+  let drag = null;
+  let saveTimer = 0;
+
+  function remember() {
+    const flow = figure.parentElement;
+    if (!flow) return;
+    const box = flow.getBoundingClientRect();
+    const rect = figure.getBoundingClientRect();
+    const column = box.width || 1;
+    item.x = Math.round(Math.min(100, Math.max(0, ((rect.left - box.left) / column) * 100)) * 100) / 100;
+    item.y = Math.round(Math.min(800, Math.max(0, ((rect.top - box.top) / column) * 100)) * 100) / 100;
+  }
+
+  function saveNow() {
+    if (!state.admin) return;
+    window.clearTimeout(saveTimer);
+    persist().catch((error) => window.alert(error.message));
+  }
+
+  figure.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    if (event.target.closest(".resize")) return;
+    const rect = figure.getBoundingClientRect();
+    drag = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moved: false };
+    figure.style.zIndex = "40";
+    event.preventDefault();
+    try { figure.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
+  });
+  figure.addEventListener("pointermove", (event) => {
+    if (!drag) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      figure.classList.add("is-dragging");
+      const flow = figure.parentElement.getBoundingClientRect();
+      figure.style.left = `${drag.left - flow.left}px`;
+      figure.style.top = `${drag.top - flow.top}px`;
+      job.body = job.body.filter((entry) => entry !== item).concat(item);
+    }
+    const flow = figure.parentElement.getBoundingClientRect();
+    figure.style.left = `${drag.left + dx - flow.left}px`;
+    figure.style.top = `${drag.top + dy - flow.top}px`;
+    remember();
+    if (!state.admin) return;
+    window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(saveNow, 160);
+  });
+  const finish = () => {
+    if (!drag) return;
+    const moved = drag.moved;
+    drag = null;
+    figure.classList.remove("is-dragging");
+    if (!moved) return;
+    remember();
+    const flow = figure.parentElement;
+    if (flow) applyPicPlace(figure, item, flow);
+    pinStory();
+    saveNow();
+  };
+  figure.addEventListener("pointerup", finish);
+  figure.addEventListener("pointercancel", finish);
 }
 
 function tintBlock(item, key, value) {
@@ -540,7 +660,7 @@ function bindStoryDrag(node, job, item, grab) {
     const flow = node.parentElement;
     if (!flow) return;
     const rect = flow.getBoundingClientRect();
-    if (item.type === "image" || item.type === "text") {
+    if (item.type === "text") {
       item.side = x < rect.left + rect.width / 2 ? "left" : "right";
       applyFlowSize(node, item);
     }
@@ -592,13 +712,20 @@ function bindWrapResize(handle, figure, job, item) {
     window.removeEventListener("mouseup", finish);
     window.removeEventListener("pointercancel", finish);
     if (percent == null) return;
-    if (percent >= 99.5) delete item.w;
-    else {
+    if (item.type === "text") {
+      if (percent >= 99.5) delete item.w;
+      else {
+        item.w = percent;
+        if (item.side !== "left" && item.side !== "right") item.side = "left";
+      }
+      applyFlowSize(figure, item);
+    } else {
       item.w = percent;
-      if (item.type === "text" && item.side !== "left" && item.side !== "right") item.side = "left";
+      const flow = figure.parentElement;
+      if (flow) applyPicPlace(figure, item, flow);
+      refreshPictures();
+      pinStory();
     }
-    applyFlowSize(figure, item);
-    if (item.type === "image") refreshPictures();
     persist().catch((error) => window.alert(error.message));
   };
 
@@ -613,7 +740,9 @@ function bindWrapResize(handle, figure, job, item) {
       flow: flow ? flow.getBoundingClientRect().width : rect.width,
     };
     window.addEventListener("pointermove", move);
+    window.addEventListener("mousemove", move);
     window.addEventListener("pointerup", finish);
+    window.addEventListener("mouseup", finish);
     window.addEventListener("pointercancel", finish);
     try { handle.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
   });
@@ -635,7 +764,7 @@ function addText(job, clientY) {
 function textInsertAt(clientY) {
   const flow = document.querySelector(".story-text");
   if (!flow || clientY == null) return flow ? flow.children.length : 0;
-  const kids = [...flow.children];
+  const kids = [...flow.children].filter((child) => child.classList.contains("panel"));
   for (let index = 0; index < kids.length; index += 1) {
     const rect = kids[index].getBoundingClientRect();
     if (clientY < rect.top + rect.height / 2) return index;
@@ -714,7 +843,17 @@ async function addPictures(job) {
   }
   const batch = files.slice(0, room);
   try {
-    for (const file of batch) job.body.push({ type: "image", src: await uploadFile(file) });
+    for (const file of batch) {
+      const count = job.body.filter((item) => item.type === "image").length;
+      job.body.push({
+        type: "image",
+        src: await uploadFile(file),
+        w: 46,
+        x: 4 + (count % 2) * 48,
+        y: 6 + Math.floor(count / 2) * 28,
+        rotate: 0,
+      });
+    }
     await persist();
     paint();
   } catch (error) {
@@ -980,7 +1119,10 @@ function paint() {
   }
   window.scrollTo(0, scroll);
   fitOrnament();
-  requestAnimationFrame(refreshPictures);
+  requestAnimationFrame(() => {
+    refreshPictures();
+    layoutFreePics();
+  });
 }
 
 document.addEventListener("pointerdown", (event) => {
@@ -1003,6 +1145,7 @@ window.addEventListener("resize", () => {
   clearTimeout(displayTimer);
   displayTimer = window.setTimeout(() => {
     refreshPictures();
+    layoutFreePics();
     fitOrnament();
   }, 180);
 });

@@ -416,8 +416,11 @@ function payload() {
         }
         const image = { type: "image", src: item.src };
         const width = Number(item.w);
-        if (Number.isFinite(width) && width > 0) image.w = Math.round(Math.min(100, Math.max(8, width)) * 100) / 100;
-        if (item.side === "left" || item.side === "right") image.side = item.side;
+        image.w = Number.isFinite(width) && width > 0 ? Math.round(Math.min(100, Math.max(8, width)) * 100) / 100 : 46;
+        image.x = Math.round(Math.min(100, Math.max(0, Number(item.x) || 0)) * 100) / 100;
+        image.y = Math.round(Math.min(800, Math.max(0, Number(item.y) || 0)) * 100) / 100;
+        const rotate = ((Number(item.rotate) || 0) % 360 + 360) % 360;
+        if (rotate) image.rotate = rotate;
         return image;
       });
       return {
