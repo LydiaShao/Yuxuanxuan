@@ -216,7 +216,7 @@ function quantizeEdge(edge) {
 
 function quantizeSprite(edge) {
   const step = 80;
-  const clamped = Math.min(640, Math.max(80, Math.round(edge)));
+  const clamped = Math.min(1280, Math.max(240, Math.round(edge)));
   return Math.ceil(clamped / step) * step;
 }
 
@@ -245,14 +245,14 @@ function spriteEdge(scale) {
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
   const css = Math.min(16 * rem, window.innerWidth * 0.34) * Math.max(0.2, scale || 0.5);
   const dpr = Math.max(1, window.devicePixelRatio || 1);
-  return Math.max(css, css * dpr * 0.72);
+  return css * dpr;
 }
 
 function spriteDisplay(src, scale) {
   const params = new URLSearchParams({
     src,
     w: String(quantizeSprite(spriteEdge(scale))),
-    q: "74",
+    q: "86",
   });
   return `/api/display?${params}`;
 }
@@ -733,6 +733,8 @@ function renderSprites(job) {
 
 function bindGif(image, src, scale) {
   const motion = /\.gif(?:$|[?#])/i.test(src);
+  const figure = image.closest("figure");
+  if (motion) figure?.classList.add("is-gif");
   if (!motion) {
     image.src = spriteDisplay(src, scale);
     image.addEventListener("error", () => {
@@ -745,7 +747,6 @@ function bindGif(image, src, scale) {
   image.addEventListener("error", () => {
     if (image.getAttribute("src") !== src) image.src = src;
   });
-  const figure = image.closest("figure");
   const host = figure || image;
   host.addEventListener("pointerenter", () => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;

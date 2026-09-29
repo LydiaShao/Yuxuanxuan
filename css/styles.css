@@ -662,7 +662,7 @@ body.is-admin .wrap-pic.is-right .resize {
   animation: none;
 }
 
-.sprite:hover {
+.sprite:not(.is-gif):hover {
   animation: sprite-hop 0.62s ease;
 }
 
